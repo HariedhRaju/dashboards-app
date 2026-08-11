@@ -1,0 +1,17 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  background: #0a0a0a;   /* neutral-950 */
+  color: #e5e5e5;         /* neutral-200 */
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Native <select> in dark mode — Firefox/Chrome respect this */
+select {
+  color-scheme: dark;
+}

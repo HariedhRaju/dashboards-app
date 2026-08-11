@@ -110,7 +110,7 @@ export function DashboardRenderer({ def }: { def: DashboardDef }) {
       <FilterBar title={def.title} />
       <div
         className="grid grid-cols-12 gap-3"
-        style={{ gridAutoRows: '120px' }}
+        style={{ gridAutoRows: '96px' }}
       >
         {cells.map((cell, i) => (
           <div

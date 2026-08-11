@@ -52,7 +52,7 @@ function DashboardSkeleton() {
   return (
     <div className="max-w-[1400px] mx-auto p-6">
       <div className="h-6 w-40 bg-neutral-800/60 rounded animate-pulse mb-5" />
-      <div className="grid grid-cols-12 gap-3" style={{ gridAutoRows: '120px' }}>
+      <div className="grid grid-cols-12 gap-3" style={{ gridAutoRows: '96px' }}>
         {[3, 3, 3, 3].map((w, i) => (
           <div key={i} className="bg-neutral-900/60 rounded-lg animate-pulse"
                style={{ gridColumn: `span ${w} / span ${w}` }} />
