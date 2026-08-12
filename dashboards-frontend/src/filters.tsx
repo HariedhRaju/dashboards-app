@@ -1,19 +1,24 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useContext, useMemo, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
-import type { FilterState } from './types';
+import type { FilterDropdown, FilterState } from './types';
 
 // ---------------------------------------------------------------------------
-// Filter context — URL-synced global state
+// Filter context — URL-synced global state.
+// Date range lives under ?start / ?end. Every other dropdown stores its value
+// under its own `param` key directly (e.g. ?severity=P1).
 // ---------------------------------------------------------------------------
 
 type FilterContextValue = {
   filters: FilterState;
   setRange: (start: string, end: string) => void;
-  setFilter: (key: keyof FilterState, value: string | undefined) => void;
+  setFilter: (param: string, value: string | undefined) => void;
 };
 
 const FilterCtx = createContext<FilterContextValue | null>(null);
+
+// Reserved param names that are NOT dashboard filter dropdowns.
+const RESERVED = new Set(['start', 'end']);
 
 function defaultRange(): { start: string; end: string } {
   const end = new Date();
@@ -21,27 +26,20 @@ function defaultRange(): { start: string; end: string } {
   return { start: start.toISOString(), end: end.toISOString() };
 }
 
-// URL param name ↔ filter key mapping
-const PARAM_MAP: Record<Exclude<keyof FilterState, 'date_range_start' | 'date_range_end'>, string> = {
-  user_id:    'user',
-  project_id: 'project',
-  model_name: 'model',
-  feature:    'feature',
-};
-
 export function FilterProvider({ children }: { children: ReactNode }) {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const filters = useMemo<FilterState>(() => {
     const def = defaultRange();
-    return {
+    const out: FilterState = {
       date_range_start: searchParams.get('start') ?? def.start,
       date_range_end:   searchParams.get('end')   ?? def.end,
-      user_id:    searchParams.get('user')    ?? undefined,
-      project_id: searchParams.get('project') ?? undefined,
-      model_name: searchParams.get('model')   ?? undefined,
-      feature:    searchParams.get('feature') ?? undefined,
     };
+    // Every other query param becomes a filter key verbatim.
+    for (const [k, v] of searchParams.entries()) {
+      if (!RESERVED.has(k) && v) out[k] = v;
+    }
+    return out;
   }, [searchParams]);
 
   const setRange = (start: string, end: string) => {
@@ -53,13 +51,11 @@ export function FilterProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  const setFilter = (key: keyof FilterState, value: string | undefined) => {
-    const paramKey = PARAM_MAP[key as keyof typeof PARAM_MAP];
-    if (!paramKey) return;
+  const setFilter = (param: string, value: string | undefined) => {
     setSearchParams(prev => {
       const next = new URLSearchParams(prev);
-      if (value) next.set(paramKey, value);
-      else       next.delete(paramKey);
+      if (value) next.set(param, value);
+      else       next.delete(param);
       return next;
     });
   };
@@ -101,12 +97,8 @@ const RANGE_PRESETS: Preset[] = [
 
 function computePreset(p: Preset): { start: Date; end: Date } {
   const end = new Date();
-  if (p.kind === 'ytd') {
-    const start = new Date(end.getFullYear(), 0, 1);
-    return { start, end };
-  }
-  const start = new Date(end.getTime() - p.hours * 60 * 60 * 1000);
-  return { start, end };
+  if (p.kind === 'ytd') return { start: new Date(end.getFullYear(), 0, 1), end };
+  return { start: new Date(end.getTime() - p.hours * 60 * 60 * 1000), end };
 }
 
 function detectActivePreset(filters: FilterState): string | null {
@@ -114,15 +106,11 @@ function detectActivePreset(filters: FilterState): string | null {
   const end = new Date(filters.date_range_end);
   const spanHours = (end.getTime() - start.getTime()) / (60 * 60 * 1000);
   const now = new Date();
-
-  // YTD detection: start close to Jan 1, end close to now
   const jan1 = new Date(now.getFullYear(), 0, 1);
   if (
     Math.abs(start.getTime() - jan1.getTime()) < 60 * 60 * 1000 &&
     Math.abs(end.getTime() - now.getTime()) < 24 * 60 * 60 * 1000
-  ) {
-    return 'YTD';
-  }
+  ) return 'YTD';
   for (const p of RANGE_PRESETS) {
     if (p.kind === 'rolling' && Math.abs(p.hours - spanHours) < 1) return p.label;
   }
@@ -145,34 +133,28 @@ async function fetchDimension(name: string): Promise<DimensionResponse> {
   return res.json();
 }
 
-function DimensionSelect({
-  dimension, filterKey, placeholder,
-}: {
-  dimension: 'users' | 'projects' | 'models' | 'features';
-  filterKey: keyof FilterState;
-  placeholder: string;
-}) {
+function DimensionSelect({ dropdown }: { dropdown: FilterDropdown }) {
   const filters = useFilters();
   const { setFilter } = useFilterActions();
-  const current = (filters[filterKey] as string | undefined) ?? '';
+  const current = (filters[dropdown.param] as string | undefined) ?? '';
 
   const { data } = useQuery({
-    queryKey: ['dimension', dimension],
-    queryFn: () => fetchDimension(dimension),
+    queryKey: ['dimension', dropdown.dimension],
+    queryFn: () => fetchDimension(dropdown.dimension),
     staleTime: 60_000,
   });
 
   return (
     <select
       value={current}
-      onChange={e => setFilter(filterKey, e.target.value || undefined)}
+      onChange={e => setFilter(dropdown.param, e.target.value || undefined)}
       className="
         bg-neutral-900 border border-neutral-800 rounded-md text-sm px-3 py-1.5
         text-neutral-200 hover:border-neutral-700 focus:outline-none
         focus:border-neutral-600 min-w-[140px] cursor-pointer
       "
     >
-      <option value="">{placeholder}</option>
+      <option value="">{dropdown.placeholder}</option>
       {data?.options.map(o => (
         <option key={o.value} value={o.value}>{o.label}</option>
       ))}
@@ -181,10 +163,10 @@ function DimensionSelect({
 }
 
 // ---------------------------------------------------------------------------
-// FilterBar — the top-of-dashboard filter row
+// FilterBar — dashboard declares its dropdowns via `filterBar`
 // ---------------------------------------------------------------------------
 
-export function FilterBar({ title }: { title: string }) {
+export function FilterBar({ title, dropdowns }: { title: string; dropdowns?: FilterDropdown[] }) {
   const filters = useFilters();
   const { setRange } = useFilterActions();
   const activePreset = detectActivePreset(filters);
@@ -197,7 +179,7 @@ export function FilterBar({ title }: { title: string }) {
   return (
     <div className="flex flex-col gap-3 mb-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <h1 className="text-xl font-medium text-neutral-100">{title}</h1>
+        <h1 className="text-xl font-semibold text-neutral-100">{title}</h1>
         <div className="inline-flex border border-neutral-800 rounded-md overflow-hidden text-sm">
           {RANGE_PRESETS.map(p => (
             <button
@@ -215,12 +197,11 @@ export function FilterBar({ title }: { title: string }) {
           ))}
         </div>
       </div>
-      <div className="flex flex-wrap gap-2">
-        <DimensionSelect dimension="users"    filterKey="user_id"    placeholder="All users" />
-        <DimensionSelect dimension="projects" filterKey="project_id" placeholder="All projects" />
-        <DimensionSelect dimension="models"   filterKey="model_name" placeholder="All models" />
-        <DimensionSelect dimension="features" filterKey="feature"    placeholder="All features" />
-      </div>
+      {dropdowns && dropdowns.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {dropdowns.map(d => <DimensionSelect key={d.param} dropdown={d} />)}
+        </div>
+      )}
     </div>
   );
 }

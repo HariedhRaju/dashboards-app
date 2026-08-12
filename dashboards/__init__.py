@@ -113,6 +113,17 @@ class TokenFilters(BaseModel):
     grain: Grain | None = None  # Only used by series metrics
 
 
+class BugFilters(BaseModel):
+    """Filters accepted by every bug_reports metric."""
+    date_range_start: datetime
+    date_range_end: datetime
+    project_id: UUID | None = None
+    reported_by: UUID | None = None
+    severity: str | None = None
+    status: str | None = None
+    grain: Grain | None = None  # Only used by series metrics
+
+
 def auto_grain(start: datetime, end: datetime) -> Grain:
     """Pick a sensible grain based on range span."""
     delta = end - start
@@ -231,6 +242,17 @@ _DIMENSION_QUERIES: dict[str, str] = {
     "features":
         "SELECT DISTINCT feature AS value, feature AS label "
         "FROM token_usage WHERE feature IS NOT NULL ORDER BY value",
+    # Bug dashboard dimensions
+    "bug_projects":
+        "SELECT id::text AS value, name AS label FROM bug_projects ORDER BY name",
+    "bug_reporters":
+        "SELECT id::text AS value, name AS label FROM bug_users ORDER BY name",
+    "bug_severities":
+        "SELECT DISTINCT severity AS value, severity AS label "
+        "FROM bug_reports WHERE severity IS NOT NULL ORDER BY value",
+    "bug_statuses":
+        "SELECT unnest(ARRAY['open','in_progress','fixed','closed']) AS value, "
+        "unnest(ARRAY['open','in_progress','fixed','closed']) AS label",
 }
 
 
@@ -260,3 +282,4 @@ def get_dimension(name: str) -> Any:
 # ══════════════════════════════════════════════════════════════════════════
 
 from . import metrics as _metrics  # noqa: E402, F401
+from . import bug_metrics as _bug_metrics  # noqa: E402, F401

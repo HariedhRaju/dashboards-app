@@ -89,6 +89,17 @@ psql -U postgres -d dashboards_dev -f setup/seed.sql
 re-inserting, and the schema adds `users.email` and `projects.code` if missing.
 Just run the same three commands again — safe.
 
+**Bug reports dashboard** — a second dashboard with its own tables. Set it up with:
+
+```powershell
+psql -U postgres -d dashboards_dev -f setup/bug_schema.sql
+psql -U postgres -d dashboards_dev -f setup/bug_seed.sql
+```
+
+This creates `bug_users`, `bug_projects`, `bug_reports` (separate from the token
+tables) and seeds ~15,000 bug reports over 18 months. Access it at
+`/analytics/bug-reports`.
+
 ---
 
 ### 3. Backend

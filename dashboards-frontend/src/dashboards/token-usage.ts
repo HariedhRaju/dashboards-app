@@ -16,7 +16,12 @@ const tokenUsageDashboard: DashboardDef = {
   slug: 'token-usage',
   title: 'Token Utilization Dashboard',
   category: 'ops',
-  filters: ['dateRange', 'projectId', 'modelName', 'feature'],
+  filterBar: [
+    { param: 'user_id',    dimension: 'users',    placeholder: 'All users' },
+    { param: 'project_id', dimension: 'projects', placeholder: 'All projects' },
+    { param: 'model_name', dimension: 'models',   placeholder: 'All models' },
+    { param: 'feature',    dimension: 'features', placeholder: 'All features' },
+  ],
   layout: [
     // ── Row 1: KPIs ─────────────────────────────────────
     { w: 3, h: 1, widget: {
@@ -44,12 +49,16 @@ const tokenUsageDashboard: DashboardDef = {
       icon: 'activity', iconColor: 'purple',
     }},
 
-    // ── Row 2: time series + live recent feed ──────────
-    { w: 8, h: 3, widget: {
+    // ── Row 2: time series + model donut + live recent feed ──
+    { w: 6, h: 3, widget: {
       type: 'timeseries', metric: 'tokens.timeseries',
       title: 'Token usage over time', stacked: true,
     }},
-    { w: 4, h: 3, widget: {
+    { w: 3, h: 3, widget: {
+      type: 'donut', metric: 'tokens.by_model',
+      title: 'By model',
+    }, hideWhen: ['model_name'] },
+    { w: 3, h: 3, widget: {
       type: 'table', metric: 'tokens.recent',
       title: 'Recent activity',
       compact: true,
