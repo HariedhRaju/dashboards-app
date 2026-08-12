@@ -2,7 +2,7 @@ import { Component, type ErrorInfo, type ReactNode } from 'react';
 
 import { FilterBar, useFilters } from './filters';
 import {
-  BarWidget, DonutWidget, MetricWidget, TableWidget, TimeseriesWidget,
+  BarWidget, DonutWidget, GaugeWidget, MetricWidget, TableWidget, TimeseriesWidget,
 } from './widgets';
 import type { DashboardDef, FilterState, LayoutCell, Widget } from './types';
 
@@ -16,6 +16,7 @@ function WidgetRenderer({ widget }: { widget: Widget }) {
     case 'timeseries': return <TimeseriesWidget {...widget} />;
     case 'donut':      return <DonutWidget      {...widget} />;
     case 'bar':        return <BarWidget        {...widget} />;
+    case 'gauge':      return <GaugeWidget      {...widget} />;
     case 'table':      return <TableWidget      {...widget} />;
   }
 }
@@ -107,7 +108,7 @@ export function DashboardRenderer({ def }: { def: DashboardDef }) {
 
   return (
     <div className="max-w-[1400px] mx-auto p-6">
-      <FilterBar title={def.title} />
+      <FilterBar title={def.title} dropdowns={def.filterBar} />
       <div
         className="grid grid-cols-12 gap-3"
         style={{ gridAutoRows: '120px' }}

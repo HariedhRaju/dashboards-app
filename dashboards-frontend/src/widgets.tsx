@@ -30,6 +30,20 @@ const AXIS_TEXT     = '#737373';
 const TOOLTIP_BG    = '#171717';
 const TOOLTIP_BORDER = '#404040';
 
+// Semantic colors for bug severity + status.
+const SEVERITY_COLORS: Record<string, string> = {
+  P1: '#F87171', P2: '#FBBF24', P3: '#818CF8', P4: '#FB923C',
+};
+const STATUS_COLORS: Record<string, string> = {
+  open: '#FBBF24', in_progress: '#22D3EE', fixed: '#34D399', closed: '#94A3B8',
+};
+function schemeColor(scheme: string | undefined, key: string, i: number): string {
+  if (key === 'Other') return OTHER_COLOR;
+  if (scheme === 'severity' && SEVERITY_COLORS[key]) return SEVERITY_COLORS[key];
+  if (scheme === 'status'   && STATUS_COLORS[key])   return STATUS_COLORS[key];
+  return PALETTE[i % PALETTE.length];
+}
+
 // Colored icon backgrounds for KPI cards.
 const ICON_COLORS: Record<string, { bg: string; fg: string }> = {
   orange: { bg: 'bg-orange-500/15', fg: 'text-orange-400' },
@@ -268,13 +282,13 @@ export function TimeseriesWidget({
 //  DonutWidget + BarWidget — kept for use if you want them later
 // ══════════════════════════════════════════════════════════════════════════
 
-export function DonutWidget({ metric, title }: { metric: string; title: string }) {
+export function DonutWidget({ metric, title, colorScheme }: { metric: string; title: string; colorScheme?: string }) {
   const { data, isPending, error, refetch } = useMetric<GroupResponse>(metric);
   if (isPending) return <Card><CardHeader title={title} /><Skeleton className="flex-1 min-h-[180px]" /></Card>;
   if (error) return <Card><CardHeader title={title} /><ErrorState onRetry={() => refetch()} /></Card>;
 
   const total = data.groups.reduce((s, g) => s + g.value, 0);
-  const colorFor = (key: string, i: number) => key === 'Other' ? OTHER_COLOR : PALETTE[i % PALETTE.length];
+  const colorFor = (key: string, i: number) => schemeColor(colorScheme, key, i);
 
   return (
     <Card>
@@ -309,13 +323,13 @@ export function DonutWidget({ metric, title }: { metric: string; title: string }
   );
 }
 
-export function BarWidget({ metric, title }: { metric: string; title: string }) {
+export function BarWidget({ metric, title, colorScheme }: { metric: string; title: string; colorScheme?: string }) {
   const { data, isPending, error, refetch } = useMetric<GroupResponse>(metric);
   if (isPending) return <Card><CardHeader title={title} /><Skeleton className="flex-1 min-h-[180px]" /></Card>;
   if (error) return <Card><CardHeader title={title} /><ErrorState onRetry={() => refetch()} /></Card>;
 
   const max = Math.max(...data.groups.map(g => g.value), 1);
-  const colorFor = (key: string, i: number) => key === 'Other' ? OTHER_COLOR : PALETTE[i % PALETTE.length];
+  const colorFor = (key: string, i: number) => schemeColor(colorScheme, key, i);
 
   return (
     <Card>
@@ -341,20 +355,93 @@ export function BarWidget({ metric, title }: { metric: string; title: string }) 
 }
 
 // ══════════════════════════════════════════════════════════════════════════
-//  TableWidget — the main workhorse of the new dashboard
+//  GaugeWidget — a single percentage as a radial gauge
 // ══════════════════════════════════════════════════════════════════════════
+
+export function GaugeWidget({
+  metric, title, badge, unit = 'FIX RATE',
+}: {
+  metric: string;
+  title: string;
+  badge?: string;
+  unit?: string;
+}) {
+  const { data, isPending, error, refetch } = useMetric<ScalarResponse>(metric);
+
+  if (isPending) return <Card><CardHeader title={title} /><Skeleton className="flex-1 min-h-[180px]" /></Card>;
+  if (error) return <Card><CardHeader title={title} /><ErrorState onRetry={() => refetch()} /></Card>;
+
+  const pct = Math.max(0, Math.min(100, data.value));   // value is 0-100
+  const radius = 70;
+  const stroke = 12;
+  const circumference = 2 * Math.PI * radius;
+  const arc = 0.75;                                       // 3/4 circle
+  const dash = circumference * arc;
+  const filled = dash * (pct / 100);
+
+  // Color ramp: red < 40, amber < 70, green ≥ 70
+  const color = pct >= 70 ? '#34D399' : pct >= 40 ? '#FBBF24' : '#F87171';
+
+  return (
+    <Card>
+      <CardHeader
+        title={title}
+        right={badge ? (
+          <span className="px-2 py-0.5 text-[10px] font-semibold rounded bg-emerald-500/15 text-emerald-400 uppercase tracking-wide">
+            {badge}
+          </span>
+        ) : null}
+      />
+      <div className="flex-1 flex items-center justify-center min-h-[180px]">
+        <svg viewBox="0 0 180 180" className="w-44 h-44">
+          <circle
+            cx="90" cy="90" r={radius} fill="none"
+            stroke={GRID_COLOR} strokeWidth={stroke}
+            strokeDasharray={`${dash} ${circumference}`}
+            strokeLinecap="round"
+            transform="rotate(135 90 90)"
+          />
+          <circle
+            cx="90" cy="90" r={radius} fill="none"
+            stroke={color} strokeWidth={stroke}
+            strokeDasharray={`${filled} ${circumference}`}
+            strokeLinecap="round"
+            transform="rotate(135 90 90)"
+            style={{ transition: 'stroke-dasharray 0.5s ease' }}
+          />
+          <text x="90" y="86" textAnchor="middle" className="fill-neutral-100"
+                style={{ fontSize: 26, fontWeight: 600 }}>
+            {pct.toFixed(1)}%
+          </text>
+          <text x="90" y="106" textAnchor="middle" className="fill-neutral-500"
+                style={{ fontSize: 10, letterSpacing: 1 }}>
+            {unit}
+          </text>
+        </svg>
+      </div>
+    </Card>
+  );
+}
+
+
 
 const NUMERIC_COLS = new Set([
   'requests', 'prompt_tokens', 'completion_tokens', 'total_tokens', 'calls', 'avg_per_call',
+  'count', 'reported', 'closed', 'total', 'unresolved', 'p1_open',
+  'open', 'in_progress', 'fixed',
 ]);
 
 function defaultColumnConfig(col: string): ColumnConfig {
   if (col === 'total_tokens') return { format: 'bold-number', align: 'right' };
   if (NUMERIC_COLS.has(col))  return { format: 'number',      align: 'right' };
-  if (col === 'timestamp')    return { format: 'timestamp',   align: 'left'  };
+  if (col === 'timestamp' || col === 'created_at') return { format: 'timestamp', align: 'left' };
   if (col === 'feature')      return { format: 'feature-icon', align: 'left' };
-  if (col === 'project_code') return { format: 'badge',       align: 'left'  };
-  if (col === 'user_email')   return { format: 'muted',       align: 'left'  };
+  if (col === 'severity')     return { format: 'severity-badge', align: 'left' };
+  if (col === 'status')       return { format: 'status-badge', align: 'left' };
+  if (col === 'project_code' || col === 'code') return { format: 'badge', align: 'left' };
+  if (col === 'user_email' || col === 'email')  return { format: 'muted', align: 'left' };
+  if (col === 'age_days')     return { format: 'age', align: 'right' };
+  if (col === 'pct' || col === 'close_rate')    return { format: 'percent-cell', align: 'right' };
   return { format: 'text', align: 'left' };
 }
 
@@ -391,6 +478,47 @@ function renderCell(col: string, value: unknown, cfg: ColumnConfig): ReactNode {
     }
     case 'muted':
       return <span className="text-neutral-500">{String(value)}</span>;
+    case 'severity-badge': {
+      const sev = String(value);
+      const styles: Record<string, string> = {
+        P1: 'bg-red-500/15 text-red-400',
+        P2: 'bg-amber-500/15 text-amber-400',
+        P3: 'bg-indigo-500/15 text-indigo-400',
+        P4: 'bg-orange-500/15 text-orange-400',
+      };
+      return (
+        <span className={clsx('inline-block px-2 py-0.5 text-[10px] font-semibold rounded', styles[sev] ?? 'bg-neutral-700 text-neutral-300')}>
+          {sev}
+        </span>
+      );
+    }
+    case 'status-badge': {
+      const st = String(value);
+      const styles: Record<string, string> = {
+        open:        'bg-amber-500/15 text-amber-400',
+        in_progress: 'bg-cyan-500/15 text-cyan-400',
+        fixed:       'bg-emerald-500/15 text-emerald-400',
+        closed:      'bg-neutral-600/30 text-neutral-400',
+      };
+      const dot: Record<string, string> = {
+        open: 'bg-amber-400', in_progress: 'bg-cyan-400',
+        fixed: 'bg-emerald-400', closed: 'bg-neutral-400',
+      };
+      return (
+        <span className={clsx('inline-flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-medium rounded', styles[st] ?? 'bg-neutral-700 text-neutral-300')}>
+          <span className={clsx('w-1.5 h-1.5 rounded-full', dot[st])} />
+          {st.replace('_', ' ')}
+        </span>
+      );
+    }
+    case 'age': {
+      const days = typeof value === 'number' ? value : parseFloat(String(value));
+      const label = days < 1 ? `${Math.round(days * 24)}h` : `${days.toFixed(1)}d`;
+      const color = days > 30 ? 'text-red-400' : days > 7 ? 'text-amber-400' : 'text-neutral-400';
+      return <span className={clsx('tabular-nums', color)}>{label}</span>;
+    }
+    case 'percent-cell':
+      return <span className="text-neutral-400 tabular-nums">{typeof value === 'number' ? `${value}%` : String(value)}</span>;
     case 'number':
       return <span className="text-neutral-300 tabular-nums">{typeof value === 'number' ? value.toLocaleString() : String(value)}</span>;
     case 'bold-number':

@@ -77,6 +77,12 @@ const currencyFormatter = new Intl.NumberFormat('en-US', {
 export function formatValue(value: number, format: Format, compact = false): string {
   if (format === 'currency') return currencyFormatter.format(value);
   if (format === 'percent')  return percentFormatter.format(value);
+  if (format === 'percent_whole') return `${value.toFixed(1)}%`;   // value already 0-100
+  if (format === 'hours') {
+    // Render hours human-friendly: <48h as hours, else days.
+    if (value < 48) return `${value.toFixed(1)}h`;
+    return `${(value / 24).toFixed(1)}d`;
+  }
   return compact ? compactFormatter.format(value) : standardFormatter.format(value);
 }
 

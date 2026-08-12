@@ -1,7 +1,7 @@
 // Response shapes returned by the backend metrics API.
 // These mirror the Python `models.py` shapes exactly.
 
-export type Format = 'number' | 'currency' | 'percent';
+export type Format = 'number' | 'currency' | 'percent' | 'percent_whole' | 'hours';
 
 export interface ScalarResponse {
   kind: 'scalar';
@@ -54,8 +54,9 @@ export type Widget =
       goodDirection?: 'up' | 'down' | 'neutral';
     }
   | { type: 'timeseries'; metric: string; title: string; stacked?: boolean }
-  | { type: 'donut';      metric: string; title: string }
-  | { type: 'bar';        metric: string; title: string }
+  | { type: 'donut';      metric: string; title: string; colorScheme?: 'default' | 'severity' | 'status' }
+  | { type: 'bar';        metric: string; title: string; colorScheme?: 'default' | 'severity' | 'status' }
+  | { type: 'gauge';      metric: string; title: string; badge?: string; unit?: string }
   | {
       type: 'table';
       metric: string;
@@ -73,7 +74,8 @@ export type Widget =
 export interface ColumnConfig {
   label?: string;                                                    // Header override
   align?: 'left' | 'right' | 'center';                               // Default: right for numeric-looking cols
-  format?: 'text' | 'number' | 'bold-number' | 'muted' | 'feature-icon' | 'badge' | 'timestamp';
+  format?: 'text' | 'number' | 'bold-number' | 'muted' | 'feature-icon' | 'badge'
+         | 'timestamp' | 'severity-badge' | 'status-badge' | 'age' | 'percent-cell';
   hideOn?: 'compact';                                                // Hide this column in compact mode
 }
 
@@ -94,19 +96,27 @@ export interface DashboardDef {
   title: string;
   category?: string;
   requires?: string[];
-  filters?: readonly ('dateRange' | 'projectId' | 'modelName' | 'feature')[];
+  filterBar?: FilterDropdown[];   // dropdowns shown in the filter bar
   layout: LayoutCell[];
 }
 
 // ---------------------------------------------------------------------------
-// Filter state — global filter bar values
+// Filter state — a generic string map. Date range is always present; other
+// keys are dashboard-specific (user_id, severity, status, etc.).
 // ---------------------------------------------------------------------------
 
 export interface FilterState {
-  date_range_start: string;   // ISO 8601
-  date_range_end: string;     // ISO 8601
-  user_id?: string;
-  project_id?: string;
-  model_name?: string;
-  feature?: string;
+  date_range_start: string;
+  date_range_end: string;
+  [key: string]: string | undefined;
+}
+
+/**
+ * A dropdown filter in the FilterBar. `param` is the URL query key AND the
+ * filter key sent to the API. `dimension` is the /api/dimensions/:name source.
+ */
+export interface FilterDropdown {
+  param: string;          // e.g. 'severity' → ?severity=P1 and passed to API as severity
+  dimension: string;      // e.g. 'bug_severities' → GET /api/dimensions/bug_severities
+  placeholder: string;    // e.g. 'All severities'
 }
