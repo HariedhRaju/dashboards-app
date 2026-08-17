@@ -100,6 +100,19 @@ This creates `bug_users`, `bug_projects`, `bug_reports` (separate from the token
 tables) and seeds ~15,000 bug reports over 18 months. Access it at
 `/analytics/bug-reports`.
 
+**Test case generation dashboard** — a third dashboard with two tables
+(`generation_runs` + `test_cases`). Set it up with:
+
+```powershell
+psql -U postgres -d dashboards_dev -f setup/testcase_schema.sql
+psql -U postgres -d dashboards_dev -f setup/testcase_seed.sql
+```
+
+This seeds 256 generation runs and ~6,000 test cases over 12 months, with
+realistic priority drift, schema failures, and coverage gaps. Access it at
+`/analytics/test-cases`. To regenerate the seed with fresh random data, run
+`python setup/gen_testcase_seed.py > setup/testcase_seed.sql`.
+
 ---
 
 ### 3. Backend

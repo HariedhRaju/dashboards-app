@@ -124,6 +124,18 @@ class BugFilters(BaseModel):
     grain: Grain | None = None  # Only used by series metrics
 
 
+class TestCaseFilters(BaseModel):
+    """Filters accepted by every test-case-generation metric."""
+    date_range_start: datetime
+    date_range_end: datetime
+    project_id: UUID | None = None
+    reported_by: UUID | None = None
+    coverage_level: str | None = None
+    priority: str | None = None
+    test_type: str | None = None
+    grain: Grain | None = None  # Only used by series metrics
+
+
 def auto_grain(start: datetime, end: datetime) -> Grain:
     """Pick a sensible grain based on range span."""
     delta = end - start
@@ -169,7 +181,7 @@ def register_metric(
         def tokens_total(cur, filters):
             ...
     """
-    if kind not in {"scalar", "series", "group", "table"}:
+    if kind not in {"scalar", "series", "group", "table", "matrix"}:
         raise ValueError(f"Unknown metric kind: {kind!r}")
 
     def decorator(fn: Callable) -> Callable:
@@ -253,6 +265,20 @@ _DIMENSION_QUERIES: dict[str, str] = {
     "bug_statuses":
         "SELECT unnest(ARRAY['open','in_progress','fixed','closed']) AS value, "
         "unnest(ARRAY['open','in_progress','fixed','closed']) AS label",
+    # Test-case generation dimensions
+    "tc_projects":
+        "SELECT id::text AS value, name AS label FROM tc_projects ORDER BY name",
+    "tc_reporters":
+        "SELECT id::text AS value, name AS label FROM tc_users ORDER BY name",
+    "tc_coverage_levels":
+        "SELECT unnest(ARRAY['Essential','Standard','Comprehensive']) AS value, "
+        "unnest(ARRAY['Essential','Standard','Comprehensive']) AS label",
+    "tc_priorities":
+        "SELECT unnest(ARRAY['Core','High','Medium','Low']) AS value, "
+        "unnest(ARRAY['Core','High','Medium','Low']) AS label",
+    "tc_test_types":
+        "SELECT unnest(ARRAY['happy_path','negative','boundary','error_handling']) AS value, "
+        "unnest(ARRAY['happy path','negative','boundary','error handling']) AS label",
 }
 
 
@@ -283,3 +309,4 @@ def get_dimension(name: str) -> Any:
 
 from . import metrics as _metrics  # noqa: E402, F401
 from . import bug_metrics as _bug_metrics  # noqa: E402, F401
+from . import testcase_metrics as _testcase_metrics  # noqa: E402, F401

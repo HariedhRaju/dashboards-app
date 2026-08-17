@@ -33,11 +33,26 @@ export interface TableResponse {
   format: Format;
 }
 
+export interface MatrixRow {
+  feature: string;
+  assigned: string;                      // the feature's assigned priority tier
+  cells: Record<string, number>;         // priority → count
+  total: number;
+}
+
+export interface MatrixResponse {
+  kind: 'matrix';
+  columns: string[];                     // e.g. ['Core','High','Medium','Low']
+  rows: MatrixRow[];
+  format: Format;
+}
+
 export type MetricResponse =
   | ScalarResponse
   | SeriesResponse
   | GroupResponse
-  | TableResponse;
+  | TableResponse
+  | MatrixResponse;
 
 // ---------------------------------------------------------------------------
 // Dashboard config types
@@ -54,9 +69,10 @@ export type Widget =
       goodDirection?: 'up' | 'down' | 'neutral';
     }
   | { type: 'timeseries'; metric: string; title: string; stacked?: boolean }
-  | { type: 'donut';      metric: string; title: string; colorScheme?: 'default' | 'severity' | 'status' }
-  | { type: 'bar';        metric: string; title: string; colorScheme?: 'default' | 'severity' | 'status' }
+  | { type: 'donut';      metric: string; title: string; colorScheme?: 'default' | 'severity' | 'status' | 'priority' }
+  | { type: 'bar';        metric: string; title: string; colorScheme?: 'default' | 'severity' | 'status' | 'priority'; highlightZero?: boolean }
   | { type: 'gauge';      metric: string; title: string; badge?: string; unit?: string }
+  | { type: 'heatmap';    metric: string; title: string; note?: string }
   | {
       type: 'table';
       metric: string;
@@ -75,7 +91,8 @@ export interface ColumnConfig {
   label?: string;                                                    // Header override
   align?: 'left' | 'right' | 'center';                               // Default: right for numeric-looking cols
   format?: 'text' | 'number' | 'bold-number' | 'muted' | 'feature-icon' | 'badge'
-         | 'timestamp' | 'severity-badge' | 'status-badge' | 'age' | 'percent-cell';
+         | 'timestamp' | 'severity-badge' | 'status-badge' | 'age' | 'percent-cell'
+         | 'priority-pill' | 'test-type' | 'drift-dot' | 'bool-check' | 'step-count';
   hideOn?: 'compact';                                                // Hide this column in compact mode
 }
 
@@ -86,9 +103,15 @@ export type HideWhen = (keyof FilterState)[];
 
 export interface LayoutCell {
   w: number;   // 1–12 grid columns
-  h: number;   // Row height in units (1 unit ≈ 88px)
+  h: number;   // Row height in units (1 unit ≈ 120px)
   widget: Widget;
   hideWhen?: HideWhen;
+  /**
+   * When true, the cell grows to fit its content instead of being clamped to
+   * `h` fixed rows. Use for data-driven widgets (heatmaps, long compact tables)
+   * so they never show an internal scrollbar. `h` still acts as a minimum.
+   */
+  autoHeight?: boolean;
 }
 
 export interface DashboardDef {
