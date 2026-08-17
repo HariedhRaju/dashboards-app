@@ -2,7 +2,7 @@ import { Component, type ErrorInfo, type ReactNode } from 'react';
 
 import { FilterBar, useFilters } from './filters';
 import {
-  BarWidget, DonutWidget, GaugeWidget, MetricWidget, TableWidget, TimeseriesWidget,
+  BarWidget, DonutWidget, GaugeWidget, HeatmapWidget, MetricWidget, TableWidget, TimeseriesWidget,
 } from './widgets';
 import type { DashboardDef, FilterState, LayoutCell, Widget } from './types';
 
@@ -17,6 +17,7 @@ function WidgetRenderer({ widget }: { widget: Widget }) {
     case 'donut':      return <DonutWidget      {...widget} />;
     case 'bar':        return <BarWidget        {...widget} />;
     case 'gauge':      return <GaugeWidget      {...widget} />;
+    case 'heatmap':    return <HeatmapWidget    {...widget} />;
     case 'table':      return <TableWidget      {...widget} />;
   }
 }

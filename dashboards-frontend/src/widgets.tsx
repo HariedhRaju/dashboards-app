@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useState, type CSSProperties, type ReactNode } from 'react';
 import {
   Area, AreaChart, CartesianGrid, Cell, Pie, PieChart,
   ResponsiveContainer, Tooltip, XAxis, YAxis,
@@ -13,7 +13,8 @@ import {
 
 import { formatDelta, formatValue, useMetric } from './api';
 import type {
-  ColumnConfig, GroupResponse, ScalarResponse, SeriesResponse, TableResponse,
+  ColumnConfig, GroupResponse, MatrixResponse, MatrixRow,
+  ScalarResponse, SeriesResponse, TableResponse,
 } from './types';
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -37,10 +38,14 @@ const SEVERITY_COLORS: Record<string, string> = {
 const STATUS_COLORS: Record<string, string> = {
   open: '#FBBF24', in_progress: '#22D3EE', fixed: '#34D399', closed: '#94A3B8',
 };
+const PRIORITY_COLORS: Record<string, string> = {
+  Core: '#F87171', High: '#FBBF24', Medium: '#818CF8', Low: '#FB923C',
+};
 function schemeColor(scheme: string | undefined, key: string, i: number): string {
   if (key === 'Other') return OTHER_COLOR;
   if (scheme === 'severity' && SEVERITY_COLORS[key]) return SEVERITY_COLORS[key];
   if (scheme === 'status'   && STATUS_COLORS[key])   return STATUS_COLORS[key];
+  if (scheme === 'priority' && PRIORITY_COLORS[key]) return PRIORITY_COLORS[key];
   return PALETTE[i % PALETTE.length];
 }
 
@@ -323,13 +328,16 @@ export function DonutWidget({ metric, title, colorScheme }: { metric: string; ti
   );
 }
 
-export function BarWidget({ metric, title, colorScheme }: { metric: string; title: string; colorScheme?: string }) {
+export function BarWidget({ metric, title, colorScheme, highlightZero }: { metric: string; title: string; colorScheme?: string; highlightZero?: boolean }) {
   const { data, isPending, error, refetch } = useMetric<GroupResponse>(metric);
   if (isPending) return <Card><CardHeader title={title} /><Skeleton className="flex-1 min-h-[180px]" /></Card>;
   if (error) return <Card><CardHeader title={title} /><ErrorState onRetry={() => refetch()} /></Card>;
 
   const max = Math.max(...data.groups.map(g => g.value), 1);
-  const colorFor = (key: string, i: number) => schemeColor(colorScheme, key, i);
+  const colorFor = (key: string, i: number) => {
+    if (highlightZero && key === '0') return '#F87171';   // red for the 0-step warning bar
+    return schemeColor(colorScheme, key, i);
+  };
 
   return (
     <Card>
@@ -425,10 +433,133 @@ export function GaugeWidget({
 
 
 
+// ══════════════════════════════════════════════════════════════════════════
+//  HeatmapWidget — feature × priority grid, off-tier cells flagged as drift
+// ══════════════════════════════════════════════════════════════════════════
+
+export function HeatmapWidget({ metric, title, note }: { metric: string; title: string; note?: string }) {
+  const { data, isPending, error, refetch } = useMetric<MatrixResponse>(metric);
+
+  if (isPending) return <Card><CardHeader title={title} /><Skeleton className="flex-1 min-h-[200px]" /></Card>;
+  if (error) return <Card><CardHeader title={title} /><ErrorState onRetry={() => refetch()} /></Card>;
+
+  // Scale intensity per-column so each priority's cells are compared to their own
+  // max — otherwise one dominant column flattens every other cell to invisibility.
+  const colMax: Record<string, number> = {};
+  for (const col of data.columns) {
+    colMax[col] = Math.max(1, ...data.rows.map(r => r.cells[col] ?? 0));
+  }
+
+  // Perceptual curve: sqrt lifts mid/low values so they're distinguishable
+  // instead of all collapsing to near-zero opacity.
+  const intensityOf = (val: number, col: string) => {
+    if (val <= 0) return 0;
+    return Math.sqrt(val / colMax[col]);   // 0..1, curved
+  };
+
+  const cellStyle = (row: MatrixRow, col: string): CSSProperties => {
+    const val = row.cells[col] ?? 0;
+    const isAssignedTier = row.assigned === col;
+
+    if (val === 0) {
+      // Empty: barely-there recessed tile, clearly distinct from any real value.
+      return { background: 'rgba(255,255,255,0.015)', color: 'transparent' };
+    }
+    const t = intensityOf(val, col);
+    if (!isAssignedTier) {
+      // Drift — red family. Floor at 0.28 so even 1 case is clearly visible.
+      const alpha = 0.28 + t * 0.55;
+      return {
+        background: `rgba(248, 113, 113, ${alpha})`,
+        color: t > 0.45 ? '#1a0a0a' : '#fecaca',
+        fontWeight: 600,
+      };
+    }
+    // On-tier — indigo family.
+    const alpha = 0.22 + t * 0.62;
+    return {
+      background: `rgba(129, 140, 248, ${alpha})`,
+      color: t > 0.5 ? '#0a0a1a' : '#e0e7ff',
+      fontWeight: 600,
+    };
+  };
+
+  const colWidth = `${72 / data.columns.length}%`;
+
+  return (
+    <Card>
+      <CardHeader title={title} right={note ? <span className="text-neutral-500">{note}</span> : null} />
+      <div className="overflow-x-auto flex-1">
+        <div className="min-w-[560px]">
+          {/* Header row */}
+          <div className="flex items-center mb-1.5">
+            <div className="w-[28%] shrink-0 text-[10px] uppercase tracking-wider text-neutral-500 pl-1">Feature</div>
+            <div className="flex-1 flex gap-1.5">
+              {data.columns.map(col => (
+                <div key={col} className="flex-1 text-center text-[11px] font-semibold"
+                     style={{ color: PRIORITY_COLORS[col] ?? '#a3a3a3' }}>
+                  {col}
+                </div>
+              ))}
+            </div>
+            <div className="w-[52px] shrink-0 text-right text-[10px] uppercase tracking-wider text-neutral-500">Total</div>
+          </div>
+
+          {/* Tile rows */}
+          <div className="flex flex-col gap-1.5">
+            {data.rows.map(row => (
+              <div key={row.feature} className="flex items-center">
+                <div className="w-[28%] shrink-0 pr-2 truncate text-xs text-neutral-300">
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: PRIORITY_COLORS[row.assigned] ?? '#6b7280' }} />
+                    <span className="truncate">{row.feature}</span>
+                  </span>
+                </div>
+                <div className="flex-1 flex gap-1.5">
+                  {data.columns.map(col => {
+                    const val = row.cells[col] ?? 0;
+                    const isDrift = val > 0 && row.assigned !== col;
+                    return (
+                      <div
+                        key={col}
+                        title={`${row.feature} · ${col}: ${val}${isDrift ? ' (drift)' : ''}`}
+                        className="flex-1 h-8 rounded-md flex items-center justify-center text-xs tabular-nums transition-transform hover:scale-[1.04] hover:ring-1 hover:ring-white/20 cursor-default"
+                        style={cellStyle(row, col)}
+                      >
+                        {val > 0 ? val : ''}
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="w-[52px] shrink-0 text-right text-xs tabular-nums text-neutral-200 font-medium">{row.total}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div className="mt-3 flex items-center gap-4 text-[10px] text-neutral-500">
+        <span className="inline-flex items-center gap-1.5">
+          <span className="flex gap-0.5">
+            <span className="w-3 h-3 rounded-sm" style={{ background: 'rgba(129,140,248,0.3)' }} />
+            <span className="w-3 h-3 rounded-sm" style={{ background: 'rgba(129,140,248,0.85)' }} />
+          </span>
+          on assigned tier (low → high)
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="w-3 h-3 rounded-sm" style={{ background: 'rgba(248,113,113,0.6)' }} /> priority drift
+        </span>
+      </div>
+    </Card>
+  );
+}
+
+
+
 const NUMERIC_COLS = new Set([
   'requests', 'prompt_tokens', 'completion_tokens', 'total_tokens', 'calls', 'avg_per_call',
   'count', 'reported', 'closed', 'total', 'unresolved', 'p1_open',
   'open', 'in_progress', 'fixed',
+  'cases', 'core', 'schema_fails', 'drift', 'avg_steps', 'features', 'copies',
 ]);
 
 function defaultColumnConfig(col: string): ColumnConfig {
@@ -442,6 +573,12 @@ function defaultColumnConfig(col: string): ColumnConfig {
   if (col === 'user_email' || col === 'email')  return { format: 'muted', align: 'left' };
   if (col === 'age_days')     return { format: 'age', align: 'right' };
   if (col === 'pct' || col === 'close_rate')    return { format: 'percent-cell', align: 'right' };
+  if (col === 'priority' || col === 'assigned_priority') return { format: 'priority-pill', align: 'left' };
+  if (col === 'test_type')    return { format: 'test-type', align: 'left' };
+  if (col === 'drifted')      return { format: 'drift-dot', align: 'center' };
+  if (col === 'schema_ok')    return { format: 'bool-check', align: 'center' };
+  if (col === 'step_count')   return { format: 'step-count', align: 'right' };
+  if (col === 'coverage_level') return { format: 'text', align: 'left' };
   return { format: 'text', align: 'left' };
 }
 
@@ -499,10 +636,14 @@ function renderCell(col: string, value: unknown, cfg: ColumnConfig): ReactNode {
         in_progress: 'bg-cyan-500/15 text-cyan-400',
         fixed:       'bg-emerald-500/15 text-emerald-400',
         closed:      'bg-neutral-600/30 text-neutral-400',
+        success:     'bg-emerald-500/15 text-emerald-400',
+        partial:     'bg-amber-500/15 text-amber-400',
+        failed:      'bg-red-500/15 text-red-400',
       };
       const dot: Record<string, string> = {
         open: 'bg-amber-400', in_progress: 'bg-cyan-400',
         fixed: 'bg-emerald-400', closed: 'bg-neutral-400',
+        success: 'bg-emerald-400', partial: 'bg-amber-400', failed: 'bg-red-400',
       };
       return (
         <span className={clsx('inline-flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-medium rounded', styles[st] ?? 'bg-neutral-700 text-neutral-300')}>
@@ -519,6 +660,43 @@ function renderCell(col: string, value: unknown, cfg: ColumnConfig): ReactNode {
     }
     case 'percent-cell':
       return <span className="text-neutral-400 tabular-nums">{typeof value === 'number' ? `${value}%` : String(value)}</span>;
+    case 'priority-pill': {
+      const prio = String(value);
+      const colors: Record<string, string> = {
+        Core: 'bg-red-500/15 text-red-400',
+        High: 'bg-amber-500/15 text-amber-400',
+        Medium: 'bg-indigo-500/15 text-indigo-400',
+        Low: 'bg-orange-500/15 text-orange-400',
+      };
+      return (
+        <span className={clsx('inline-block px-2 py-0.5 text-[10px] font-semibold rounded', colors[prio] ?? 'bg-neutral-700 text-neutral-300')}>
+          {prio}
+        </span>
+      );
+    }
+    case 'test-type': {
+      const tt = String(value).replace('_', ' ');
+      const colors: Record<string, string> = {
+        'happy path': 'text-emerald-400',
+        'negative': 'text-amber-400',
+        'boundary': 'text-indigo-400',
+        'error handling': 'text-red-400',
+      };
+      return <span className={clsx('text-xs', colors[tt] ?? 'text-neutral-400')}>{tt}</span>;
+    }
+    case 'drift-dot':
+      return value === true
+        ? <span title="priority drift" className="inline-block w-2 h-2 rounded-full bg-red-400" />
+        : <span className="text-neutral-700">·</span>;
+    case 'bool-check':
+      return value === true
+        ? <span className="text-emerald-400 text-xs">✓</span>
+        : <span title="schema incomplete" className="text-red-400 text-xs">✕</span>;
+    case 'step-count': {
+      const n = typeof value === 'number' ? value : parseInt(String(value), 10);
+      if (n === 0) return <span title="no steps — likely a parse failure" className="text-red-400 font-semibold tabular-nums">0</span>;
+      return <span className="text-neutral-300 tabular-nums">{n}</span>;
+    }
     case 'number':
       return <span className="text-neutral-300 tabular-nums">{typeof value === 'number' ? value.toLocaleString() : String(value)}</span>;
     case 'bold-number':
