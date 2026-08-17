@@ -2,7 +2,7 @@
 FastAPI host app for the dashboards module.
 
 Run with:
-    uvicorn main:app --reload --port 8000
+    uvicorn main:app --reload --port 4100
 
 Configure via environment variables:
     DASHBOARDS_REPLICA_DSN  Postgres DSN (e.g. postgresql://postgres:pw@localhost:5432/dashboards_dev)
@@ -20,7 +20,7 @@ app = FastAPI(title="Dashboards Dev")
 # is only needed for the local dev flow.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=["http://localhost:4099"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
