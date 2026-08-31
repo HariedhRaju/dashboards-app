@@ -18,7 +18,7 @@ export interface SeriesResponse {
   format: Format;
 }
 
-export interface GroupItem { key: string; value: number; delta?: string; status?: string; }
+export interface GroupItem { key: string; value: number; }
 export interface GroupResponse {
   kind: 'group';
   groups: GroupItem[];
@@ -95,7 +95,7 @@ export interface ColumnConfig {
 }
 
 /**
- * A widget cell hides/shows itself when any of these filter keys is active.
+ * A widget cell hides itself when any of these filter keys is active.
  */
 export type HideWhen = (keyof FilterState)[];
 

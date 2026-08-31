@@ -17,10 +17,10 @@ const bugReportsDashboard: DashboardDef = {
   title: 'Bug Bot — Quality Command Center',
   category: 'quality',
   filterBar: [
-    { param: 'project_id',  dimension: 'bug_projects',   placeholder: 'All projects' },
-    { param: 'reported_by', dimension: 'bug_reporters',  placeholder: 'All reporters' },
-    { param: 'severity',    dimension: 'bug_severities', placeholder: 'All severities' },
-    { param: 'status',      dimension: 'bug_statuses',   placeholder: 'All statuses' },
+    { param: 'project_id',  dimension: 'bug_projects',   placeholder: 'All Game Projects' },
+    { param: 'issue_no',    dimension: 'bug_issues',     placeholder: 'All Bug Issues (#)' },
+    { param: 'severity',    dimension: 'bug_severities', placeholder: 'All Severities' },
+    { param: 'status',      dimension: 'bug_statuses',   placeholder: 'All Statuses' },
   ],
   layout: [
     // ── Row 1: KPIs ──

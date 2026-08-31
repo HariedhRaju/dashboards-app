@@ -1,0 +1,1255 @@
+Issue No,Created,Repro Rate,Severity,Issue Type,Summary,Description,Steps,Actual Result,Expected Result,Build & Version,Attachments (Use this link) Create a folder  and rename with Issue #,Resolution,Status,Dev Resolution,Dev Comments,Comments,,,,,,,,
+1#,15/09/2025,5/5,Minor,Functionality,The campaign game selection page is displayed when the user exits the credit page,"When the user exits the credit page, the campaign game selection page is displayed instead of the main page","1:Launch the Title 
+2: Click on Credit page
+3: Press esc or Enter to exit from credit 
+4:Observe ",The campaign game selection page is displayed when the user exits the credit page,The user should be redirected to the Main screen after exiting the credit page.,V13000,Issue #1,,Closed,"It happens if going to campaign mode, then back to main menu and Credits",Fixed in v1.3001,Issue is verified and fixed in v1.3001,,,,,,,,
+2#,15/09/2025,5/5,Minor,Localization,Localization changes not applied until switching tabs in the Save/Load game section,"When changing the language in the settings menu, the localization does not immediately apply to the UI. The updated language only appears after the player switches to another tab","1. Launch the title 
+2. Navigate to settings 
+3. Change language into any language 
+4. After applying the settings navigate to Load/save game section 
+5. Observe that Initial stage language doesn't change, but after switching tabs",Language changes remain unapplied after selection and confirmation. The new localization is only applied after switching to another settings tab and returning.,"Language changes should immediately apply to the UI after being selected and confirmed, without requiring the user to switch tabs.",v13000,Issue #2,,Closed,,I can not reproduce this issue in v1.3001,Issue is verified and fixed in v1.3001,,,,,,,,
+3#,15/09/2025,5/5,Blocker,Gameplay,"Campaign ""The race of metal"" ends automatically after Nergaloth 'Emperor of assyria' dialogue prompt.","In game when player selects campaign and naviagets to ""The race of metal"", It is observed that the session ends automatically after the Nergaloth 'Emperor of assyria' dialogue prompt, blocking further progression","1. Launch the applicaiton
+2.Select singleplayer > Campaign > The Race of metal.
+3.Wait for the Nergaloth 'Emperor of assyria' dialogue prompt.
+4.Observe once dialogue plays the session automatically ends. ","Campaign ""The race of metal"" ends automatically after Nergaloth 'Emperor of assyria' dialogue prompt.",The race of metal' continues after the dialogues plays and player can interact with interactables,v13000,Issue #3,Not a Bug,Closed,,,Issue occurred due to debug. Hence Closing the issue,,,,,,,,
+4#,15/09/2025,5/5,Minor,Localization,"Language changes doesn't apply on ""Kill Wave and Next Wave"" in Hordes and Campaign mode","When changing the language in the settings menu, the localization does not apply to the UI on ""Next Wave or Kill Wave"" Text Box in Campaign and Hordes modes ","1. Launch the application
+2. Change language into any language
+3. Load into Hordes/Campaign game modes
+4. Observe that Kill wave and Next Wave Box language stays in English, not the current selected language",Language changes remain unapplied after selection and confirmation. English language remains on the box.,Language changes should immediately apply to the UI after being selected and confirmed,v13000,Issue #4,,Closed,,These buttons only show in the Development Version of the game (with Development Settings in the main menu) and won't be part of the release build,Issue occurred due to debug. Hence Closing the issue,,,,,,,,
+5#,15/09/2025,5/5,Minor,Localization,Upon changing language to 'Italian' the Elite light axe man under Technology tree consists of overlapping text,"In game when player selects campaign and when unlocks the Elite light axe man, It is observed that the text is overlapping","1. Launch the application
+2. Change language into Italiano
+3. Unlock the 'Elite Light axeman' under technology tree
+4. Observe the description of the 'Elite light axeman'",Upon changing language to 'Italian' the Elite light axe man under Technology tree consists of overlapping text,Description text stays in intended boundary and do not overlap with other strings,v13000,Issue #5,,Closed,,I can not reproduce this issue in v1.3001,Issue is verified and fixed in v1.3001,,,,,,,,
+6#,15/09/2025,5/5,Minor,Functionality,"Menu fails to reset to default, as previously opened sections remain expanded/open when returning to the same menu.","When navigating to a menu section, closing it, and then returning, the menu fails to reset to its default state and instead remains in the same state as previously left","1. Launch the application
+2. Open any options in the main menu
+3. Navigate to any sub menu and exit 
+4. Return back to same option opened
+5. Observe the menu remains same as perviously accessed","Menu fails to reset to default, as previously opened sections remain expanded/open when returning to the same menu.","The menu to reset to its default state upon reopening, regardless of the state it was left in previously",v13000,Issue #6,,Closed,,Settings revert to default panel after closing and re-opening in v1.3001,Issue is verified and fixed in v1.3001,,,,,,,,
+7#,15/09/2025,5/5,Major,Gameplay,Square-shaped wall placement goes in opposite direction instead of intended path,"When attempting to place a square-shaped wall structure, the wall placement system does not follow the intended layout. Instead of forming the square along the selected path, the wall segments are placed in the opposite direction and player is unable to make a square-shaped wall structure","1. Launch the application
+2. Choose Champaign & Chairots of Destiny Mode
+3. Try attempting the wall in the map edges 
+4. Observe that square-shaped wall goes  opposite direction instead of intended path ","Wall placement in square formation automatically shifts to the opposite direction, creating incorrect wall patterns.","Square-shaped wall placement should follow the player’s drag-and-drop path, correctly forming the square in the intended direction without reversing.",v13000,Issue #7,,Closed,,We'll put this in our backlog.,,,,,,,,,
+8#,15/09/2025,5/5,Major,Gameplay,Villagers fail to construct dwellings when they are placed between walls or other dwellings.,"When placing dwellings between walls or in tight spaces adjacent to other dwellings, villagers do not initiate construction. The building remains in a planned/blueprint state without any progress, blocking settlement development.","1. Launch the application
+2. Select Campaign 
+3. place walls and dewelling in tight adjacent space
+4. Place dewelling blueprint and initiate the villager to build
+5. Observe the villagers fail to build the dewellings",Villagers fail to construct dwellings when they are placed between walls or other dwellings.,Villagers to be able to start and complete construction of dwellings placed between walls or adjacent to other dwellings without any obstruction.,v13000,Issue #8,,Closed,,That is correct behavior. They are completely blocked.,,,,,,,,,
+9#,15/09/2025,5/5,Minor,Text,Incorrect “Defeated” text is displayed upon choosing the Resign option,"When the player chooses the “Resign” option from the in-game menu, the post-action screen incorrectly displays the text “Defated""","1. Launch the application
+2. Select Campaign > Any mode 
+3. Enter into the game
+4. Choose resign option
+5. Observe the result banner","Incorrect text is displayed when the player selects the “Resign” option on the result banner ""Defated""","The appropriate text should be displayed when the player chooses the “Resign” option on the result banner as ""Defeated"".",v13000,Issue #9,,Closed,,Fixed in v1.3001,Issue is verified and fixed in v1.3001,,,,,,,,
+10#,15/09/2025,5/5,Major,Gameplay,Babylonian War Chariot does not respond when selected with group,"When the player selects a whole group of units and then specifically includes the Babylonian War Chariot, the chariot unit does not come under the player’s control. The rest of the group responds to movement and attack commands, but the War Chariot remains idle and unresponsive. ","1. Launch the application
+2. Select Campaign > War of the fertile Crescent
+3. Play until you unlock ""Stable"" & ""WorkShop"" 
+4. Spawn Chariots and Battering ram and sapper
+5. Move them to one location and Select all of them
+6. Once all group is selected, Choose War Chariot for splitting up from the whole group 
+7. Observe that Player loses the control on war Chairot after choosing the split option",Babylonian War Chariot does not follow player commands when selected within a group.,"Babylonian War Chariot should be selectable and controllable like other units when included in a group, responding to all movement and attack commands issued by the player.",v13000,Issue #10,,Closed,,Fixed in v1.3001,Issue is verified and fixed in v1.3001,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+11#,16/09/2025,5/5,Major,Gameplay,Counter for defending against nomads in misson 2 does not reset after completing the mission once,"When player tries to complete mission 2 after completing it once the conuter for defending against nomad attack does not reset , so on the 2nd run the player wins the mission immediately after that goal appears on the mission board, on the 3rd run the counter will show up as 4/3 and the player is no longer able complete the mission since the win condition of 3/3 is no longer reached. This happens for each difficulty separately, ","1. Launcg the application
+2. Select campaign mission Settling the frontier
+3. Complete the mission once
+4. Reselect the same campaign mission
+5. Progress till the nomad attacks are triggered
+6. Observe that player gets the victory screen once defend againt nomads goal is triggered",Counter for defending against nomads in misson 2 does not reset after completing the mission,Game should reset the counter when player restarts a mission,v13000,https://dIssue #11,,Closed,,"Great find! This was a problem with multiple mission that we fixed in v1.3001 (mission 6, mission 7, mission 8)","Fix verified on v13001, the counter resets after player completes the mission and is working correctly",,,,,,,,
+12#,16/09/2025,5/5,Minor,Text,Changing localization fails to update on certain areas in-game.,"When the player changes the localization/language settings from the menu, some in-game text does not update to the selected language. The issue persists across UI menus, dialogue text, Titles, and main menu.","1. Launch the game.
+2. Open the Settings menu.
+3. Navigate to Localization/Language options.
+4. Change the language to another available option.
+5. Return to the game or UI.
+6. Observe that text remains unchanged [Game modes, Title, Dialogue prompt].",Changing localization fails to update on certain areas in-game.,In-game text to immediately update to reflect the newly selected localization setting.,v13000,Issue #12,,QA Ready,,I can not reproduce this issue in v1.3001,,,,,,,,,
+13#,16/09/2025,5/5,Major,Gameplay,Only two saves are visible after changing language to French in Save Section,"When the in-game language is changed to French, the Save Section only displays two saves, even if more save files exist. This issue limits player access to their full save list and the Saved date & time as well changes","1. Launch the application
+2. Navigate to Settings > Gameplay 
+3. Change Language to French 
+4. Go to Any mode and click Load game 
+5. Observe that only Hordes Mode is visible in the save files 
+6. Observe that other saved files disappears",Only two save files are displayed in the Save Section after switching to French.,All previously created save files should remain visible and accessible regardless of selected language.,v13000,Issue #13,,Closed,,I can not reproduce this issue in v1.3001,Issue is verified and fixed in v1.3001,,,,,,,,
+14#,16/09/2025,5/5,Minor,UI,Switching localization to French causes text in the Game Mode section to overflow and break UI boundaries.,"When localization is changed to French, the text within the Game Mode section exceeds the intended boundary, overlapping with adjacent UI elements and breaking layout.","1. Launch the application
+2. Navigate to Settings > Gameplay 
+3. Change Language to French 
+4. Navigate to game mode section 
+5. Observe text alignment and boundaries.","Text in the Game Mode section overflows outside the boundary, causing visual misalignment and readability issues.","Localized French text to properly scale, wrap, or adjust to fit within the defined UI boundaries.",v13000,Issue #14,,Closed,,I can not reproduce this issue in v1.3001,Issue is verified and fixed in v1.3001,,,,,,,,
+15#,16/09/2025,5/5,Minor,Localization,Apple resource text not translated inside the game after changing languages,"When changing the in-game language through the Save Section, the Apple resource text does not update with the selected language. The Apple resource name remains untranslated, breaking consistency in localization across the UI and creating confusion for players using non-English languages.","1. Launch the application
+2. Play any campaign modes
+3. Enter into the game and create the village centre
+4. Click on Apple tree resource 
+5. Observe Translation is not applied and ""No Translation"" is visible","The Apple resource text remains in English and does not reflect the newly selected language with the error of ""No Translation Found""","The Apple resource text should be translated according to the selected language in the Save Section, maintaining localization consistency across the UI.",v13000,Issue #15,,Closed,,Fixed in v1.3001,Issue is verified and fixed in v1.3001,,,,,,,,
+16#,16/09/2025,5/5,Minor,Text,Debug text appears in certain sections of the game UI.,Debug text is visible to the player in parts of the game UI where it should not appear. The text resembles internal development/debug strings rather than localized player-facing text.,"1. Launch the application
+2. Debug text is observed at multiple sections
+3. Section's consists of debug text Load save,In game for starvation, Replay section
+",Debug text appears in visible sections of the UI.,Debug text to be hidden from the player in all public builds.,v13000,Issue #16,,Closed,,Fixed in v1.3001,Issue is verified and fixed on v1.3001,,,,,,,,
+17#,16/09/2025,5/5,Minor,UI,Objective text in “Dawn of Village” exceeds intended count of executed orders.,"During the quest “Dawn of Village,” the objective tracking system displays more executed orders than intended. The text misrepresents the actual number of completed objectives, leading to inaccurate quest progression display.","1. Launch the application.
+2. Start Singleplayer> Campaign > Dawn of Villages
+3. Follow the Objectives
+4. Wait for the Orders Executed objective
+5. Observe the count exceeding 9/3.","The objective text displays an excess count of executed orders, exceeding the intended number.",Quest objectives to display only the valid number of executed orders as intended by design.,v13000,Issue #17,,Closed,,I can not reproduce this issue in v1.3001,Issue is verified and fixed on v1.3001,,,,,,,,
+18#,16/09/2025,5/5,Minor,UI,Sword icon on influence range tutorial tooltip is too big in mission 2,"During mission Settling the frontier , the sword icon that is displayed on the influence range tooltip is too big and overlaps other UI elements such as the arrows to swtich toolitps","1. Launcg the application
+2. Select campaign mission Settling the frontier
+3. Progress until influence range tooltip is displayed
+4. Observe that sword Icon displayed is too big",The size of sword icon displayed in the tool tip is inconsistent with other icons displayed in the tool tip,The size of sword icon displayed should match other icons displayed in the tool tip,v13000,Issue #18,,Closed,,Fixed in v1.3001,"Fix verified on v13001, the sword icon is consistent with other icons",,,,,,,,
+19#,16/09/2025,5/5,Major,Functionality,"During replay, the camera fails to focus on the selected team when using Fog of War or Reveal Map modes.","When replaying a match, selecting a team and toggling Fog of War or Reveal Map does not shift the camera focus to the selected team. Instead, the camera remains static or defaults incorrectly, preventing players from tracking team movements effectively.","1. Launch the application
+2. Create a room and invite a opponent
+3. Once game over > save the replay
+4. Navigate to main menu > Replay 
+5. Toggle the teams and map options
+6. Observe the Camera fails to focus on the selected teams in both revealed map and fog of war","Camera fails to update focus, leaving the selected team off-screen or untracked.",The replay camera to correctly focus on the selected team when Fog of War or Reveal Map is applied.,v13000,Issue #19,,Closed,,We'll put this in our backlog.,,,,,,,,,
+20#,16/09/2025,5/5,Major,Functionality,Multiple functionalities are accessible when Technology Tree is opened in the Replay System,"When opening the Technology section during a replay, multiple functionalities (such as Fog of war and Reveal Map) are still active even though they should be restricted in replay mode. ","1. Launch the application
+2. Create a Multiplayer game play
+3. Play any mode games and complete them 
+4. Choose save replay at the end 
+5. Open Replay System and Select ""Fog of war"" & any player
+6. Open Technology tree 
+7. Observe on top right the fog of war and map reveal appears twice 
+8. Observe while Tree is on, Player can access Fog of war and Map Reveal actions","Multiple functionalities are accessible within the Technology section during replay (e.g., Fog of war & Map Reveal), which should not be available.","The Technology section in replay mode should be restricted to view-only functionality, with no active interactions available.",v13000,Issue #20,,Closed,,I don't think this is a blocker. We'll put it in the backlog.,,,,,,,,,
+21#,16/09/2025,5/5,Major,Gameplay,"Player is able to save the game while in Replay mode, causing the opponent team remain idle for the entire session.","When the player initiates a save during Replay mode and open the save in single player mode, the opponent team becomes unresponsive. The opposing team remains idle for the remainder of the session, eliminating combat challenge and progression integrity.","1. Launch the application
+2. Load a replay
+3. Save game during replay
+4. Navigate to main menu > single player > load game > Load the replay
+5. Observe that the opponent team remains idle for the rest of the session.","Saving from Replay locks the opponent AI into an idle state, breaking immersion and balance.","Replay mode does not allow saving, or saving should properly resume normal gameplay with functional AI.",v13000,Issue #21,,Closed,,These Save button is disabled when it's not Development Version. Double-checked that it's the case.,,,,,,,,,
+22#,16/09/2025,5/5,Trivial,Gameplay,Player fails to reconnect or lacks an option to re-join a previously left lobby.,"If a player disconnects an active multiplayer lobby, there is no system option to reconnect or re-join the same session. This results in the player being permanently excluded from the match and forces lobby recreation or restarting the entire session.","1. Launch the application
+2. Join a multiplayer lobby.
+3.Once the game starts, Force close the game by ALT+F4 or Windows Close
+4. Attempt to re-join the same lobby.
+5. Observe that no option is provided to reconnect.","No reconnect/re-join option is available, preventing players from returning to the active lobby.","Players to have the option to reconnect or re-join a lobby they were previously in, provided the session is still active.",v13000,"Issue #22
+(Suggestion)",,Closed,,This is a pretty advanced feature that we have to put in the backlog for now.,,,,,,,,,
+23#,16/092025,5/5,Trivial,Gameplay,Opponent can continue playing after Host force closes the game,"When the Host force closes the game during an active multiplayer session, the opponent is still able to continue playing the match alone without being disconnected. This results in desynchronized behavior, as the server should terminate or pause the match when the Host disconnects.","1. Launch the application
+2. Join a multi player lobby game
+3. Be the host and start the game once opponent is ready in lobby
+4. Once the game starts, Force close the game by ALT+F4 or Windows Close
+5. Observe in the opponent POV, Game will be still playable without any enemies in the map 
+6. Host cannot re-join or cannot see any lobby list in the lobby page.","The opponent is able to continue playing the game without any opponents or server synchronization, despite the Host force closing the game.","The match should end or all players should be disconnected if the Host force closes the game, preventing continued unsynced play.",v13000,Issue #23,,Closed,,"We have host migration, so if the host left but there are still teams left, then the rest of the players should be able to play on whilst the host's units become revolters. Are you saying the game desynched when you tested this?","As per the comment host migration takes place , there is no desync issues. Hence closing the ticket",,,,,,,,
+24#,16/09/2025,5/5,Minor,UI,Swordsman title exceeds intended UI boundaries when toggling between different localizations.,"When toggling between different localizations, the text for the “Swordsman” title is not properly adjusted to fit within the designated UI boundaries. The title stretches or overlaps outside its intended area, breaking visual consistency.","1.Launch the application.
+2. Navigate to swordsmanTitles.
+3. Toggle localization between English and another supported language (e.g., French).
+4. Observe the “Swordsman” title exceeding its UI boundaries.",The title exceeds its allocated UI space and overflows outside of the designated boundary.,The Swordsman title to dynamically resize or wrap text to remain within the UI boundary regardless of localization.,v13000,Issue #24,,We'll put this in our backlog.,,Fixed in v1.3001. Was showing description instead ot title.,,,,,,,,,
+25#,16/09/2025,5/5,Minor,Localization,For French Locale - Debug text are present in single player menu ,"When the user changes the localization to French, debug text is displayed for option titles in the single player menu.","1.Launch the application.
+2. Toggle localization,( French).from gameplay menu
+3.Click on the single player on observe","For the French locale, debug text is displayed in the single player menu",Option titles in the single player menu should be displayed in French without any debug text,v13000,Issue #25,,Closed,,Fixed in v1.3001,Issue is verified and fixed on v1.3001,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+26#,17/09/2025,5/5,Minor,UI,"At the end of the rivalry in Crescent, dialogues and character names fail to update","During the ending sequence of the rivalry in Crescent, the dialogue text and corresponding character names fail to update dynamically. This results in mismatched or incorrect speaker names being displayed alongside the dialogue lines.","1 Launch the application
+2 Progress through the rivalry in Crescent game mode.
+3 Reach the final dialogue sequence after completing the rivalry.
+4 Observe that dialogue lines and character names do not update correctly.","Character names and dialogue text remain static or mismatched, breaking immersion.",Dialogue text should display the correct lines with dynamically updating character names.,v13000,Issue #26,,Closed,,Fixed in v1.3001,Issue is verified and fixed on v1.3001,,,,,,,,
+27#,17/09/2025,5/5,Major,Gameplay,Pausing and reconstructing the Wonder resets the progress bar,"When a player pauses the construction of a Wonder and later resumes or reconstructs it, the progress bar resets instead of continuing from the previous progress. This behavior causes players to lose all accumulated building progress, leading to wasted resources and time investment.","1.Launch the game 
+2. Start building a Wonder.
+3.Allow the construction to progress partially (e.g., 30–40%).
+4.Pause the wonder structure construction midway.
+5.Resume or reconstruct the Wonder from the same location.","The Wonder’s construction progress bar resets to 0%, and previously completed progress is lost.","The Wonder’s construction should resume from the last recorded progress instead of resetting, preserving all previously completed work.",v13000,Issue #27,,Closed,,That is correct behavior. If you stop construction it resets and you get resources back etc.,Issue is verified and fixed on v1.3001,,,,,,,,
+28#,17/09/2025,5/5,Minor,UI,Incorrect value is displayed next to the missing wood in archery range when creating units,"When player tries to create a unit in the archery range when there is not enough wood the game displays incorrect value next to missing wood .In the video the game displays 700 wood is missing even though player needs just 19 wood for unit creation,","1. Launch the game
+2. Select any mission after mission 4
+3. Construct Archery range
+4. Reduce wood to 0 or less than 10
+5. Create any unit that requires wood 
+6. Observe that incorrect value is displayed next to missing wood",Incorrect value is displayed next to the missing wood in archery range when creating units,Game should correctly display how much wood is missing,v13000,Issue #28,,Closed,,Fixed in v1.3001,"Fix verified on v13001 , the value displays the correct amount of wood missing",,,,,,,,
+29#,17/09/2025,5/5,Minor,UI,Windowed and Fullscreen options are displayed instead of Small and Large under game and ui scaling section during a session.,"When adjusting display settings, the game incorrectly shows the options as Windowed and Fullscreen instead of Small and Large. This creates inconsistency in UI labels and may confuse players attempting to adjust screen size.","1. Launch the application
+2. Navigate to single player or multiplayer
+3. Once in session > Navigate to seetings > Display
+4. Toggle the options windows and fullsceen 
+5. Observe the screen enlarging and srinking when toggled",Windowed and Fullscreen options are displayed instead of Small and Large under game and ui scaling section during a session.,Options to be correctly labeled as Small and Large.,v13000,Issue #29,,Closed,,Fixed in v1.3001,Issue is verified and fixed on v1.3001,,,,,,,,
+30#,17/09/2025,5/5,Minor,UI,Incorrect value is displayed for Food change last 30 seconds,"During gameplay it is observed that incorrect value is displayed for Food change last 30 seconds, When the misson starts the consumption is 6 food per 15 seconds so if player does not increase the population or gather any food the value should drop to 12 (6 X 2), however ingame the counter just stops at -4","1. Launch the game
+2. Select any mission 
+3. Stay Idle
+4. Hover mouse over the food icon
+5. Observe that Food change last 30 seconds show upto -4 instead of -12",Incorrect value is displayed for Food change last 30 seconds,Food change last 30 seconds should display the correct value based on food consumed in the last 30 seconds,v13000,Issue #30,,Closed,,Fixed in v1.3001 (only showed for the last 10 seconds and not 30),"Fix verified on v13001 , the value displays the food consumed in 30 seconds now",,,,,,,,
+31#,17/09/2025,5/5,Minor,Localization,Lobby localization fails to reflect correctly on room activity text,"When switching localization settings, the room activity (Entering/ Exiting the room) text in the lobby fails to update and remains in the default language. This creates inconsistency and a broken localized experience.","1. Launch the game.
+2. Change localization (e.g., switch from English to French).
+3. Enter the multiplayer lobby.
+4. Observe the room activity enter/exit text,it remains in English/default language.","Room activity text remains unchanged in the default language, ignoring the localization setting.","Room activity text to reflect the selected localization (e.g., French, German, etc.).",v13000,Issue #31,,In Progress,,Asking loc teams to translate,,,,,,,,,
+32#,17/09/2025,5/5,Blocker,Functionality,Lobby changing localization to French causes UI issues for host and blocks opponents from leaving lobby.,"When the host changes the game localization to French, a UI malfunction occurs in the multiplayer lobby. The host experiences UI layout issues, while opponents who have joined the lobby lose critical controls. These opponents are unable to leave the lobby and are only presented with the chat option, effectively trapping them. The only way to exit is by forcefully restarting the game.","1 Launch the game and host a multiplayer lobby.
+2 Change localization settings to French.
+3 Have other players join the lobby.
+4 Observe that the host sees UI issues.
+5 Opponents cannot leave the lobby and only have chat functionality available.","UI breaks for the host, and opponents cannot exit the lobby (restricted to chat only), requiring a restart.",Localization change should update UI text without affecting functionality. Players should still have the option to leave the lobby.,v13000,Issue #32,,QA Ready,,Fixed in v1.3001,,,,,,,,,
+33#,17/09/2025,5/5,Minor,Text,Ready status text overlaps in certain languages (Russian/Portuguese/Polish),"In multiplayer lobbies, the ""Ready"" status text overlaps with player names or UI elements when the game is set to certain languages such as Russian, Portuguese, or Polish. This issue occurs due to longer localized text lengths not fitting within the designated space. It impacts readability and may cause confusion during pre-match setup.","1. Launch the game 
+2. Navigate to Multiplayer mode.
+3. Set the in-game language to Russian, Portuguese, or Polish via Settings.
+4. Create or join a multiplayer lobby.
+5. Toggle the ""Ready"" status.","The ""Ready"" status text overlaps with other UI elements or player names in the lobby when using Russian, Portuguese, or Polish.","The ""Ready"" status text should properly align without overlapping, regardless of language, by adjusting font scaling, spacing, or UI layout.",v13000,Issue #33,,QA Ready,,Fixed in v1.3001,,,,,,,,,
+34#,17/09/2025,5/5,Major,Gameplay,Damage shows as Null for Ostrich/Antelope/Mouflon while Boar displays correct damage,"When querying or inspecting wildlife units such as Ostrich, Antelope, and Mouflon, the damage stat is displayed as ""Null"" or "" - "". In contrast, the Boar correctly displays its damage value. This inconsistency creates confusion about unit behavior and combat mechanics, potentially misleading players into assuming some units cannot attack when they may have intended stats.","1. Launch the game
+2. Enter any map containing Ostrich, Antelope, Mouflon, and Boar.
+3. Select or query each of these wildlife units.
+4. Observe the damage stat in their unit information panel.","Damage stat is shown as ""Null"" for Ostrich, Antelope, and Mouflon, while Boar correctly displays its damage value.","All wildlife units should have consistent stat representation. Units capable of dealing damage should display correct numeric values, while non-damaging units should display ""0"" or equivalent instead of ""Null.""",v13000,Issue #34,,Closed,,Fixed in v1.3001,"Fix verified on v13001 , a numeric value is displayed for attack damage",,,,,,,,
+35#,17/09/2025,5/5,Major,Functionality,Technology Tree can be opened at end of Result Banner in Chariots of Destiny,"At the end of a match in Chariots of Destiny, the Technology Tree can still be accessed and opened from the Result Banner screen. This creates a UI/flow inconsistency, as the player is expected to review results and return to the main menu instead of interacting with in-game progression menus
+
+Note : Issue noticed only in Chariots of Destiny Map under Campaign Mode.","Launch the game 
+2. Start a match in Campagin > Chariots of Destiny.
+3. Play until the match ends or do Self resign
+4. Wait till the Result Banner is displayed.
+5. Attempt to open the Technology Tree from the Result Banner screen.
+6. Observe While the resule banner is active, Technology tree can be opened","The Technology Tree opens from the Result Banner screen, despite the match having ended.","The Technology Tree should not be accessible once the Result Banner is displayed. Only post-match options (e.g., summary, replay, exit to menu) should be available.",V13000,Issue #35,,Closed,,Diagree. While exploring map player might wanna check what techs were unlocked.,,,,,,,,,
+36#,17/09/2025,5/5,Minor,Functionality,"""ESC"" button function does not work in Create Room section","In Multiplayer mode, when navigating to the Create Room section, pressing the ""ESC"" button does not perform any function. Normally, the ""ESC"" button is expected to close the current menu or return the player to the previous screen. ","1. Launch the game 
+2. Navigate to Multiplayer mode.
+3. Enter the Create Room section.
+4. Press the ""ESC"" button.","No action occurs when pressing the ""ESC"" button in the Create Room section.","Pressing the ""ESC"" button should return the player to the previous screen or close the Create Room menu, consistent with standard UI behavior.",V13000,Issue #36,,Closed,,Fixed in v1.3001,Issue is verified and fixed on v1.3001,,,,,,,,
+37#,17/09/2025,5/5,Minor,Text,Dwelling notification does not apply selected language and displays in English only,"When the game language is changed from English to another supported language, the Dwelling notification still appears in English. Other UI elements correctly reflect the selected language, but the notification text fails to localize. ","1. Launch the application
+2. Choose the game in English.
+3. Change the language setting to a non-English language (e.g., French, Russian, Portuguese).
+4. Trigger a Dwelling notification in-game.
+5. Observe the notification text",Dwelling notification is displayed in English regardless of the selected language.,Dwelling notification should display in the selected language consistently with the rest of the UI.,V13000,Issue #37,,In Progress,,Asked localization team to translate,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+38#,18/09/2025,5/5,Minor,Text,Polish & Brazil text overlaps in Description section in Elite light axeman,"When the game language is set to Polish or Brazil, the text in the Description section overlaps with other UI elements due to longer localized strings not fitting properly within the designated space. This makes the text difficult to read and impacts overall readability for Polish players.","1. Launch the game in English 
+2. Navigate to a screen with a Description section (e.g., Axeman, Elite Axeman).
+3. Change the language setting to Polish & same in brazil
+4. Open the same Description section.
+5. Observe the text layout.","Polish & Brazil text in the Description section overlaps with other UI elements, reducing readability.","Polish text and brazil should be properly formatted and aligned within the Description section without overlapping, maintaining readability and consistent UI layout.",v13000,Issue #38,,Closed,,Fixed in v1.3001,Issue is verified and fixed on v1.3001,,,,,,,,
+39#,18/09/2025,5/5,Major,Achievements,Hordes achievements can be unlocked incorrectly by skipping waves and killing only the last wave,"In Horde mode, players can unlock achievements without completing the intended gameplay requirements. By repeatedly choosing “Next Wave” until the final wave and then clicking “Kill Wave” once, the game grants the related Horde achievements. This allows players gain Beginner/Familiar/Similar/Master achievements on steam","1. Launch the game 
+2. Enter Horde mode.
+3. Progress through the mode by selecting “Next Wave” repeatedly until the last wave.
+4.Once on the final wave, click “Kill Wave.”
+5. Observe the Achievements menu.
+6. Do the same above for all the different level achievements list",Horde achievements are unlocked even though the player did not complete all waves normally.,Horde achievements should only be awarded when the player legitimately survives and completes each wave as intended. Skipping directly to the last wave and killing it should not trigger the achievements.,v13000,Issue #39,,Closed,,"These settings don't exist in release build, only Development Build.",,,,,,,,,
+40#,18/09/2025,5/5,Minor,UI,Spectating section lacks proper category alignment – spectating players are displayed with irregular spacing.,"When entering spectating mode, the section that lists spectating players does not properly categorize or align them. Instead of being organized in structured categories, player names appear divided only by inconsistent spacing, leading to confusion and poor readability.","1. Launch the applicaton
+2. Join or create a lobby/match.
+3 Switch to spectating mode.
+4 Observe the spectating player list in the UI while loading .","Spectating players appear only separated by space, lacking categorization.",Spectating players should be displayed under clear categories with proper alignment.,v13000,Issue #40,,Open,,Is that because of the error message showing bot-left?,,,,,,,,,
+41#,18/09/2025,5/5,Major,Art,NullReference error occurs on Clay Pit when selected or placed on the ground,"When the player selects or places a Clay Pit on the ground, a NullReference error is triggered. This disrupts gameplay, as the error may interfere with normal building functionality and could impact stability of the session.
+
+Note : 
+1. Clay pit logo/image keeps changing upon re-selecting ""Claypit"" building.
+2. If we Select Any building and select placed Claypit again, User is unable to close console option.
+3. If we do the same process as above and click clay pit late in the game, Preview changes to previously clicked attributes instead of clay pit attributes","1. Launch the game 
+2. Start any new matc in Multiplayer or Singleplayer 
+3. Locate the Clay Pit building option.
+4. Select the Clay Pit from the build menu.
+5. Place the Clay Pit on the ground.
+6. Observe the NullRefer triggering on the bottom",A NullReference error occurs when the Clay Pit is selected or placed on the ground.,"The Clay Pit should be selectable and placeable without triggering any NullReference errors, and it should function as a normal building.",v13000,Issue #41,,Closed,,It was lacking localization. Fixed in v1.3001,Issue is verified and fixed in v1.3001,,,,,,,,
+42#,18/09/2025,5/5,Major,Gameplay,Null reference error generated when repeatedly clicking “Next Wave” under hordes.,"When the player rapidly and repeatedly clicks the “Next Wave” button, a Null Reference Error is triggered. This interrupts gameplay and may cause instability in the session.","1 Launch the application
+2 Start a Hordes gameplay session.
+3 Rapidly and repeatedly click the “Next Wave” button.
+4 Observe the error message in the logs/game screen.",A Null Reference Error occurs when the button is clicked repeatedly in quick succession.,Clicking “Next Wave” multiple times to queue or ignore extra inputs without generating errors.,v13000,Issue #42,,Closed,,"These settings don't exist in release build, only Development Build.",,,,,,,,,
+43#,18/09/2025,5/5,Minor,UI,Elite swordsmans name is incorrectly displayed,During gameplay it is observed that elite swordsman's name is incorrectly displayed as Elite Elite Infantry that deals high damage ,"1. Start any mission higher than 5
+2. Progress and unlock elite swordsman
+3. Spawn elite swordsman
+4. Click on any elite swordsman
+5. Observe that name is incorrectly displayed",Elite swordsmans' name is incorrectly displayed,Units name should be correctly displayed as elite swordsman,v13000,Issue #43,,QA Ready,,Fixed in v1.3001 (showed unit description by mistake) -> Figured out what the problem was for Swordsman and fixed in v1.3002,"Fix failed, the unit tiltle still mentions the description on v1.3001
+Issue 43 reopen.png",,,,,,,,
+44#,18/09/2025,5/5,Minor,Localization,Village center text is not localised in italian immediately after putting down the foundation,"The name of the village center will be displayed in english immediately after putting down the foundation, however the italian translation is displayed immediately after it is built","1. Navigate to settings and change language to italian
+2. Enter any mission
+3. Put down the foundation of village center
+4. Observe that the name is not localised",Village center text is not localised in italian immediately after putting down the foundation,Village center name should be localised to italian,v13000,Issue #44,,Closed,,Fixed in v1.3001 ,"Fix verified on v13001 , Village center is translated to italian",,,,,,,,
+45#,18/09/2025,5/5,Minor,UI,Debug text is displayed for trade button in market,"While in market menu when player hovers over the trade button, debug text (missing localisation value is displayed above the window, this is displayed for all 4 trade buttons","1. Start any mission higher than 5
+2. Progress and unlock Market
+3. Construct a market
+4. Hover mouse over the trade buttons in market 
+5. Observe that debug text is displayed above the window",Debug text is displayed for trade button in market,Debug text should not appear when player hovers above the trade button in market,v13000,Issue #45,,In Progress,,Asked localization team to translate,,,,,,,,,
+46# ,18/09/2025,5/5,Major,Gameplay,Duplicate rooms created and Null Reference Error generated after being kicked from a lobby under Hordes.,"When a player is kicked out of a lobby, the system erroneously creates duplicate rooms. At the same time, a Null Reference Error is generated in the logs/game, causing confusion in lobby management and potential instability.","1 Launch the application
+2 Join an active lobby.
+3 Have the host kick the player from the lobby.
+4 Observe the lobby list and logs after removal.
+5 Note the duplicate rooms and Null Reference Error.","Duplicate rooms are created, and a Null Reference Error occurs after the player is kicked.",Player should be removed from the lobby cleanly without creating duplicate rooms or generating errors.,v13000,Issue #46,,Closed,,Fixed in v1.3001 ,Issue is verified and fixed in v1.3001,,,,,,,,
+47#,18/09/2025,5/5,Major,Functionality,Re-assigning keys does not function as intended and instead closes the Building menu,"When attempting to re-assign hotkeys, the function does not properly update the keybinding. Instead, pressing the newly assigned key closes the Building menu rather than performing the intended action. ","1. Launch the game and 
+2. Go to Settings ? Hot Keys.
+3. Re-assign a key to a Building menu action (e.g., opening or selecting a structure).
+4. Return to gameplay and attempt to use the newly assigned key.
+5. Observe as the building menu closes instead of acting as intended.",The Building menu closes when the reassigned key is pressed instead of executing the intended function.,"Re-assigned keys should function as intended, triggering the assigned Building menu action without closing the menu unexpectedly",v13000,Issue #47,,Open,,Need some time to properly debug this.,,,,,,,,,
+48# ,18/09/2025,5/5,Major,Functionality,"Creating a new room when one already exists, then clicking Refresh, generates Null Reference Exception and duplicate rooms.","When a player creates a room under Hordes game mode while a room already exists on the server, clicking the Refresh button in the lobby menu generates a Null Reference Exception. Additionally, duplicate rooms are created, cluttering the server list and potentially impacting matchmaking.","1 Launch the application
+2 Navigate to Hordes game mode.
+3 Have a room created by opponent.
+4 Click the Refresh button.
+5 Observe the duplicate rooms and Null Reference Exception.","Null Reference Exception is generated, and duplicate rooms appear.","Room creation should be restricted to prevent duplicates, and refreshing should cleanly update the room list without errors.",v13000,Issue #48,,Closed,,Fixed in v1.3001 ,Issue is verified and fixed on v1.3001,,,,,,,,
+49#,18/09/2025,5/5,Minor,Text,Unassigned hotkey text overlaps in UI,"When a hotkey is left unassigned, the placeholder text overlaps with other UI elements in the Keybinding or settings menu. This reduces readability and creates a cluttered interface, making it difficult for players to clearly understand which keys are available or unassigned.","1. Launch the game 
+2. Navigate to Settings ? Keybindings.
+3. Unassign any hotkey (e.g., Building menu or Unit command).
+4. Observe the text displayed in the Keybinding menu.","The ""Unassigned"" text overlaps with adjacent UI elements, reducing readability.","The ""Unassigned"" text should be displayed clearly and aligned without overlapping, maintaining readability across all languages and UI layouts.",v13000,Issue #49,,Closed,,Fixed in v1.3001 ,Issue is verified and fixed on v1.3001,,,,,,,,
+50#,18/09/2025,5/5,Major,Functionality,Multiple duplicate room created when player is being kicked from lobby when player kicked from the Hordes  mode  ,"When a player creates a room under Hordes game mode while a room already exists on the server, clicking the Refresh button in the lobby menu generates a Null Reference Exception. Additionally, duplicate rooms are created, cluttering the server list and potentially impacting matchmaking. duplcation happening to all the sever , Preventing the user to create the room ","1 Launch the application
+2 Navigate to Hordes game mode.
+3 Have a room created by opponent.
+4 Click the Refresh button.
+5 Observe the duplicate rooms ",Multiple duplicate room created when player is being kicked from lobby when player kicked from the Hordes  mode  ,"Room creation should be restricted to prevent duplicates, and refreshing should cleanly update the room list without errors.",v13000,Issue #5,,Closed,,Fixed in v1.3001 ,Issue is verified and fixed in v1.3001,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+51#,19/09/2025,3/5,Major,Animation,Female villager fishing animation displays incorrectly while food-picking animation appears normal,"When a Female Villager performs the fishing action, the fishing animation plays incorrectly (animation clip/pose/prop alignment appears wrong or inconsistent). The same villager performs the item/food-picking animation normally. ","1. Launch the application
+2. Create Sandbox mode game
+3. Choose female villager 
+4. Locate water place and fishing spot
+5. Click to choose fishing from far range
+6. Observe the animation after villager reaches for fishing.","Fishing animation for the Female Villager is displayed incorrectly (misaligned pose/clip or props not animating correctly), while the food-picking animation displays and functions normally.","Fishing animation for the Female Villager should play correctly and consistently (proper pose, animation clip, and prop alignment). Food-picking animation should remain unaffected and normal.", v1.3001 ,Issue #51,,Closed,,This is correct behavior and the animation plays as it should. Unfortunately because of the isometric camera view and the way characters are drawn (only horizontal directions) this is a bi-effect. The only way to solve this would be to add an animation of the female throwing upwards.,,,,,,,,,
+52#,19/09/2025,5/5,Minor,UI,Random numbers displayed on Wonder and Palace after construction,"After constructing a Wonder or Palace, random numbers are displayed on the building model/UI instead of the expected finalized state.","1. Launch the game 
+2. Start a new match in any mode
+3. Build a Wonder 
+4. Observe the building once construction is completed.
+5. Repeat the same steps with a Palace.
+6. Observe after construction is completed random mnumbers are visible ",Random numbers are displayed on the Wonder and Palace after construction.,"Wonder and Palace should not display random numbers after construction. Only relevant building visuals, stats, or UI information should appear.", v1.3001 ,Issue #52,,QA Ready,,Fixed in v1.3002,,,,,,,,,
+53#,19/09/2025,5/5,Major,Gameplay,Device Unplugged error visible after system inactivity and desktop manual lock,"When the system goes inactive and the desktop is locked manually for more than 5minutes, upon returning to the game a ""Device Unplugged"" error message is displayed. This occurs even though no device was physically disconnected. The issue may disrupt gameplay and create confusion for players, as they must restart or reconnect unnecessarily.
+
+Preconditions
+1. Desktop must be manually locked by the user.
+2. Locking can occur in any state such as in-game, menu screen, or credits screen.","1. Launch the game
+2. Start any match or stay in the menu screen
+3. Lock the desktop manually 
+4. Check after 5-10minutes of inactivity
+5. Observe Nullref error is displayed with ""Device Unplugged"" notice in the bottom","A ""Device Unplugged"" error is displayed after inactivity/desktop lock, despite no device being disconnected.","No ""Device Unplugged"" error should appear unless a device is physically disconnected. The game should resume normally after inactivity or desktop lock.", v1.3001 ,Issue #53,,Closed,,This is a Unity issue we can't do anything about and won't show in release build.,,,,,,,,,
+54#,19/09/2025,5/5,Major,Gameplay,"""ArgumentException: Empty Table Reference"" is triggered whenever the nomad attack triggers in mission 2","During mission 2 game play it is observed that ""ArgumentException: Empty Table Reference"", is thrown whenever the nomad attack even occurs","1. Start misson 2
+2. Build the village center and train 10 villagers and reserch militia
+3. Wait for nomad attack to trigger
+4. Observe that ArgumentException error is thrown","""ArgumentException: Empty Table Reference"" is triggered whenever the nomad attack triggers in mission 2",ArgumentException errors should not occur druing gameplay, v1.3001 ,Issue #54,,In Progress,,Asked localization team to translate,,,,,,,,,
+55#,19/09/2025,5/5,Minor,UI,Scrolled menu of Hotkey section fails to reset to top when revisiting the menu.,"When the player scrolls down within the Hotkey section and then exits the settings menu, reopening the settings menu does not reset the scroll position to the top. Instead, it reopens at the previously scrolled position, creating confusion for the player when reviewing or resetting hotkeys.","1 Launch the application
+2 Open the Settings menu ? navigate to the Hotkey section.
+3 Scroll down to any position in the list.
+4 Exit the Settings menu.
+5 Reopen the Settings menu ? Hotkey section reopens at the previously scrolled position instead of resetting to top.",The Hotkey section retains the last scrolled position when revisited.,The Hotkey section to reset to the top position each time the settings menu is reopened., v1.3001 ,Issue #55,,QA Ready,,Fixed in v1.3002,,,,,,,,,
+56#,19/09/2025,5/5,Minor,UI,"""No translation found"" debug text is displayed in dialogue in mission 6, 7","While in misson 6 and 7, player will see the ""No translation found"" debug text in the dialogue boxs they see after choosing a civilization","1. Start misson 6,7
+2. Build the village center and research 3 tech
+3.Select a civilization to align with
+4. Observe that the dialox boxes displayed contain debug text No translation found","""No translation found"" debug text is displayed in dialogue in mission 6,7",Player should see the correct dialogues from the chiefs after aligning with a civilization, v1.3001 ,Issue #56,,In Progress,,Fixed in v1.3002,,,,,,,,,
+57#,19/09/2025,5/5,Minor,UI,"""No translation found"" debug text is displayed in mission briefing of chapter 8","While in chapter 8, the misson briefing dialogue boxes contain ""No translation found"" debug text ","1. Start mission 8
+2. Progrss through the dialogue box till you reach the last one
+3. Observe that ""No translation found"" debug text  is displayed","""No translation found"" debug text is displayed in mission briefing of chapter 8",Player should see the correct dialogues during mission briefing, v1.3001 ,Issue #57,,QA Ready,,Fixed in v1.3002,,,,,,,,,
+58#,19/09/2025,5/5,Minor,UI,Farm number doesn't update during farming and granary storage,"The farm count/number does not update correctly while villagers are farming and transferring resources to the granary. This causes a mismatch between the actual resources gathered and the displayed farm status, leading to confusion for players managing resources.","1. Launch the application
+2. Build a farm and assign villagers to begin farming.
+3. Allow villagers to gather food and deposit it into the granary.
+4. Observe the farm number/resource count during farming and after deposit.",The farm number remains unchanged during farming and while villagers are depositing into the granary.,The farm number should update dynamically to reflect the correct resource count both during farming and when villagers deposit food into the granary., v1.3001 ,Issue #57,,QA Ready,,I can't see any wrong bevahior. The resource count changes when farmer deposits to delivery building. It shhouldn't change while farming.,,,,,,,,,
+59#,19/09/2025,5/5,Minor,UI,"""No translation found"" debug text is displayed in Wonder level 3 and 4 upgrade description","During gameplay it is observed that ""No translation found"" debug text is displayed in the upgrade discription of level 3 and 4 of Wonder","1. Enter mission 7
+2. Progress until Wonder unlocks
+3. Build wonder upto level 2
+4 .Hover over the upgrade button for level 3/4
+5. Observe that ""No translation found"" debug text is displayed ","""No translation found"" debug text is displayed in Wonder level 3 and 4 upgrade description",Game should display the upgrade description when mouse hovers over upgrade button in wonder , v1.3001 ,Issue #59,,QA Ready,,Fixed in v1.3002,,,,,,,,,
+60#,19/09/2025,5/5,Major,Console,Unable to close dev console in Dev build upon NullReference error due to Claypit placement,"When placing a Claypit in the Dev build, a NullReference error is triggered. Once this occurs, the developer console automatically opens but cannot be closed, preventing the user from resuming gameplay or interacting with the UI. 
+
+Note : Bug links to Issue #41","1. Launch the application
+2. start any game in campagin 
+3. Place Claypit 
+4. Observe the NullRef error pops up 
+5. After the error pop up, Click other structures/villagers and re-click on Claypit
+6. Observe that Dev console doesn't close upon clicking ""close"" functionality","The dev console remains open after the NullReference error and cannot be closed, blocking gameplay.","The dev console should remain closable even if a NullReference error occurs, allowing the user to continue interacting with the game.", v1.3001 ,Issue #60,,QA Ready,,Fixed clay description error in v1.3002. The dev console won't be showing in release builds.,,,,,,,,,
+#61,19/09/2025,1/5,Major,Multiplayer,Out of sync occurs mid-game in 3-player multiplayer after ~20 minutes of gameplay,"During a 3-player multiplayer match, the game goes out of sync after approximately 20 minutes of gameplay. This forces the session to break, preventing players from completing the match. The issue heavily impacts stability and multiplayer experience.
+
+Note : Third player log didn't generate","1. Launch the game on PC.
+2. Host a 3-player multiplayer match.
+3. Play normally for ~20 minutes.
+4. Observe that an out-of-sync error occurs mid-game.",Game desynchronizes after ~20 minutes of 3-player multiplayer gameplay. Session cannot continue properly.,Multiplayer matches should remain synchronized throughout gameplay without desync issues.,v1.3001,Issue #61,,In Progress,,We have been aware of a possible desync issue for a while but have no idea what it's caused by. Would be easier to fix if we knew the reproduction steps. Any advice on how we can find them?,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,

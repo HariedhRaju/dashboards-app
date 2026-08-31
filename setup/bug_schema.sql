@@ -48,3 +48,14 @@ CREATE INDEX IF NOT EXISTS idx_bug_reports_severity  ON bug_reports (severity, s
 CREATE INDEX IF NOT EXISTS idx_bug_reports_status    ON bug_reports (status);
 CREATE INDEX IF NOT EXISTS idx_bug_reports_project   ON bug_reports (project_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_bug_reports_reporter  ON bug_reports (reported_by, created_at DESC);
+
+-- Unique index for external bug import idempotency (project_id + source + source_record_id).
+CREATE UNIQUE INDEX IF NOT EXISTS idx_bug_reports_project_source_record
+ON bug_reports (
+    project_id,
+    (dynamic_fields->>'source'),
+    (dynamic_fields->>'source_record_id')
+)
+WHERE dynamic_fields->>'source' IS NOT NULL
+  AND dynamic_fields->>'source_record_id' IS NOT NULL;
+

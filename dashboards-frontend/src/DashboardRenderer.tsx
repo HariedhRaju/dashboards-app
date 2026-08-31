@@ -1,10 +1,11 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
-
 import { FilterBar, useFilters } from './filters';
 import {
-  BarWidget, DonutWidget, GaugeWidget, MetricWidget, TableWidget, TimeseriesWidget,
+  BarWidget, DonutWidget, FunnelWidget, GaugeWidget, HeatmapGridWidget, LeaderboardWidget, MetricWidget, SpeedDialWidget, TableWidget, TimeseriesWidget,
+  ProjectBannerWidget, ProjectHealthWidget, WhatChangedWidget, ProjectTimelineWidget, ProgressTrendWidget, AttentionRequiredWidget, MilestoneTrackerWidget, PortfolioMatrixWidget,
 } from './widgets';
 import type { DashboardDef, FilterState, LayoutCell, Widget } from './types';
+import { AgentDashboardRenderer } from './AgentDashboardRenderer';
 
 // ---------------------------------------------------------------------------
 // WidgetRenderer — one switch, everything else falls out.
@@ -12,12 +13,24 @@ import type { DashboardDef, FilterState, LayoutCell, Widget } from './types';
 
 function WidgetRenderer({ widget }: { widget: Widget }) {
   switch (widget.type) {
-    case 'metric':     return <MetricWidget     {...widget} />;
-    case 'timeseries': return <TimeseriesWidget {...widget} />;
-    case 'donut':      return <DonutWidget      {...widget} />;
-    case 'bar':        return <BarWidget        {...widget} />;
-    case 'gauge':      return <GaugeWidget      {...widget} />;
-    case 'table':      return <TableWidget      {...widget} />;
+    case 'metric':             return <MetricWidget             {...widget} />;
+    case 'timeseries':         return <TimeseriesWidget         {...widget} />;
+    case 'donut':              return <DonutWidget              {...widget} />;
+    case 'bar':                return <BarWidget                {...widget} />;
+    case 'gauge':              return <GaugeWidget              {...widget} />;
+    case 'funnel':             return <FunnelWidget             {...widget} />;
+    case 'speed_dial':         return <SpeedDialWidget          {...widget} />;
+    case 'heatmap':            return <HeatmapGridWidget        {...widget} />;
+    case 'leaderboard':        return <LeaderboardWidget        {...widget} />;
+    case 'table':              return <TableWidget              {...widget} />;
+    case 'project_banner':     return <ProjectBannerWidget      {...widget} />;
+    case 'health_bar':         return <ProjectHealthWidget      {...widget} />;
+    case 'what_changed':       return <WhatChangedWidget        {...widget} />;
+    case 'timeline':           return <ProjectTimelineWidget    {...widget} />;
+    case 'progress_trend':     return <ProgressTrendWidget      {...widget} />;
+    case 'attention_required': return <AttentionRequiredWidget   {...widget} />;
+    case 'milestone_tracker':  return <MilestoneTrackerWidget   {...widget} />;
+    case 'portfolio_matrix':   return <PortfolioMatrixWidget    {...widget} />;
   }
 }
 
@@ -51,12 +64,18 @@ class WidgetErrorBoundary extends Component<
 // ---------------------------------------------------------------------------
 
 /**
- * A widget is hidden when any of its `hideWhen` filter keys has a truthy value.
- * A single-select dropdown restricting to one feature makes "by feature" useless.
+ * A widget is hidden when:
+ *  - hideWhen: any listed filter key has a truthy value → hide
+ *  - showWhen: NONE of the listed filter keys have a truthy value → hide
  */
 function isHidden(cell: LayoutCell, filters: FilterState): boolean {
-  if (!cell.hideWhen?.length) return false;
-  return cell.hideWhen.some(key => Boolean(filters[key]));
+  if (cell.hideWhen?.length) {
+    if (cell.hideWhen.some(key => Boolean(filters[key]))) return true;
+  }
+  if (cell.showWhen?.length) {
+    if (!cell.showWhen.some(key => Boolean(filters[key]))) return true;
+  }
+  return false;
 }
 
 /**
@@ -98,35 +117,40 @@ function rebalance(layout: LayoutCell[], filters: FilterState): LayoutCell[] {
   return result;
 }
 
-// ---------------------------------------------------------------------------
-// DashboardRenderer
-// ---------------------------------------------------------------------------
-
 export function DashboardRenderer({ def }: { def: DashboardDef }) {
   const filters = useFilters();
   const cells = rebalance(def.layout, filters);
+  const isBugReports = def.slug === 'bug-reports';
 
   return (
     <div className="max-w-[1400px] mx-auto p-6">
-      <FilterBar title={def.title} dropdowns={def.filterBar} />
-      <div
-        className="grid grid-cols-12 gap-3"
-        style={{ gridAutoRows: '120px' }}
-      >
-        {cells.map((cell, i) => (
-          <div
-            key={i}
-            style={{
-              gridColumn: `span ${cell.w} / span ${cell.w}`,
-              gridRow:    `span ${cell.h} / span ${cell.h}`,
-            }}
-          >
-            <WidgetErrorBoundary>
-              <WidgetRenderer widget={cell.widget} />
-            </WidgetErrorBoundary>
-          </div>
-        ))}
-      </div>
+      <FilterBar
+        title={def.title}
+        dropdowns={def.filterBar}
+      />
+
+      {isBugReports ? (
+        <AgentDashboardRenderer projectId={filters.project_id as string} />
+      ) : (
+        <div
+          className="grid grid-cols-12 gap-3"
+          style={{ gridAutoRows: '120px' }}
+        >
+          {cells.map((cell, i) => (
+            <div
+              key={i}
+              style={{
+                gridColumn: `span ${cell.w} / span ${cell.w}`,
+                gridRow:    `span ${cell.h} / span ${cell.h}`,
+              }}
+            >
+              <WidgetErrorBoundary>
+                <WidgetRenderer widget={cell.widget} />
+              </WidgetErrorBoundary>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

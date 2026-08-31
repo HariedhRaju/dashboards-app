@@ -2,12 +2,9 @@ import { createContext, useContext, useMemo, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import type { FilterDropdown, FilterState } from './types';
-import { ImportBugsModal } from './ImportBugsModal';
 
 // ---------------------------------------------------------------------------
 // Filter context — URL-synced global state.
-// Date range lives under ?start / ?end. Every other dropdown stores its value
-// under its own `param` key directly (e.g. ?severity=P1).
 // ---------------------------------------------------------------------------
 
 type FilterContextValue = {
@@ -18,7 +15,6 @@ type FilterContextValue = {
 
 const FilterCtx = createContext<FilterContextValue | null>(null);
 
-// Reserved param names that are NOT dashboard filter dropdowns.
 const RESERVED = new Set(['start', 'end']);
 
 function defaultRange(): { start: string; end: string } {
@@ -36,7 +32,6 @@ export function FilterProvider({ children }: { children: ReactNode }) {
       date_range_start: searchParams.get('start') ?? def.start,
       date_range_end:   searchParams.get('end')   ?? def.end,
     };
-    // Every other query param becomes a filter key verbatim.
     for (const [k, v] of searchParams.entries()) {
       if (!RESERVED.has(k) && v) out[k] = v;
     }
@@ -167,13 +162,7 @@ function DimensionSelect({ dropdown }: { dropdown: FilterDropdown }) {
 // FilterBar — dashboard declares its dropdowns via `filterBar`
 // ---------------------------------------------------------------------------
 
-export function FilterBar({
-  title,
-  dropdowns
-}: {
-  title: string;
-  dropdowns?: FilterDropdown[];
-}) {
+export function FilterBar({ title, dropdowns }: { title: string; dropdowns?: FilterDropdown[] }) {
   const filters = useFilters();
   const { setRange } = useFilterActions();
   const activePreset = detectActivePreset(filters);
@@ -186,27 +175,22 @@ export function FilterBar({
   return (
     <div className="flex flex-col gap-3 mb-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <div className="flex items-center gap-4">
-          <h1 className="text-xl font-semibold text-neutral-100">{title}</h1>
-        </div>
-        <div className="flex items-center gap-3">
-          <ImportBugsModal />
-          <div className="inline-flex border border-neutral-800 rounded-md overflow-hidden text-sm">
-            {RANGE_PRESETS.map(p => (
-              <button
-                key={p.label}
-                onClick={() => selectPreset(p)}
-                className={
-                  'px-3 py-1.5 border-r border-neutral-800 last:border-r-0 transition-colors ' +
-                  (activePreset === p.label
-                    ? 'bg-neutral-800 text-neutral-100 font-medium'
-                    : 'text-neutral-400 hover:bg-neutral-900 hover:text-neutral-200')
-                }
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
+        <h1 className="text-xl font-semibold text-neutral-100">{title}</h1>
+        <div className="inline-flex border border-neutral-800 rounded-md overflow-hidden text-sm">
+          {RANGE_PRESETS.map(p => (
+            <button
+              key={p.label}
+              onClick={() => selectPreset(p)}
+              className={
+                'px-3 py-1.5 border-r border-neutral-800 last:border-r-0 transition-colors ' +
+                (activePreset === p.label
+                  ? 'bg-neutral-800 text-neutral-100 font-medium'
+                  : 'text-neutral-400 hover:bg-neutral-900 hover:text-neutral-200')
+              }
+            >
+              {p.label}
+            </button>
+          ))}
         </div>
       </div>
       {dropdowns && dropdowns.length > 0 && (

@@ -1345,7 +1345,7 @@ export function AttentionRequiredWidget({ metric, title }: { metric: string; tit
                   <span className="text-[10px] text-neutral-500 font-mono">{String(risk.risk_type || 'RISK')}</span>
                 </div>
                 <h4 className="text-xs font-semibold text-neutral-100 mb-1">{String(risk.title)}</h4>
-                {risk.detail ? <p className="text-[11px] text-neutral-400 leading-relaxed">{String(risk.detail)}</p> : null}
+                {risk.detail && <p className="text-[11px] text-neutral-400 leading-relaxed">{String(risk.detail)}</p>}
               </div>
             );
           })
