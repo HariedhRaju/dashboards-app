@@ -31,6 +31,8 @@ PROTECTED_IDENTIFIER_KEYS = {
 
 def _is_protected_identifier(key_name: str) -> bool:
     clean_name = key_name.lower().strip()
+    if clean_name == "project_id":
+        return False
     if clean_name in PROTECTED_IDENTIFIER_KEYS:
         return True
     if clean_name.endswith("_id") or clean_name.endswith("_number") or clean_name.endswith("_num"):
@@ -602,25 +604,56 @@ def query_dynamic_metric(
                         where_conds.append("dynamic_fields->>%s = %s")
                         where_params.extend([k, str(v)])
 
-        if is_standard:
+        if is_standard and field_name == "project_id":
+            b_where_conds = [c.replace("project_id", "b.project_id").replace("reported_by", "b.reported_by").replace("created_at", "b.created_at").replace("severity", "b.severity").replace("status", "b.status") for c in where_conds]
+            where_clause = f"WHERE {' AND '.join(b_where_conds)}"
+            cur.execute(f"""
+                SELECT COALESCE(p.name, 'Unassigned') AS label, COUNT(*)::bigint AS value
+                FROM bug_reports b
+                LEFT JOIN bug_projects p ON p.id = b.project_id
+                {where_clause}
+                GROUP BY 1
+                ORDER BY value DESC
+                LIMIT %s
+            """, [*where_params, limit])
+        elif is_standard and field_name == "reported_by":
+            b_where_conds = [c.replace("project_id", "b.project_id").replace("reported_by", "b.reported_by").replace("created_at", "b.created_at").replace("severity", "b.severity").replace("status", "b.status") for c in where_conds]
+            where_clause = f"WHERE {' AND '.join(b_where_conds)}"
+            cur.execute(f"""
+                SELECT COALESCE(u.name, b.reported_by::text) AS label, COUNT(*)::bigint AS value
+                FROM bug_reports b
+                LEFT JOIN bug_users u ON u.id = b.reported_by
+                {where_clause}
+                GROUP BY 1
+                ORDER BY value DESC
+                LIMIT %s
+            """, [*where_params, limit])
+        elif is_standard:
             field_expr = f"{field_name}::text"
             where_conds.append(f"{field_name} IS NOT NULL")
+            where_clause = f"WHERE {' AND '.join(where_conds)}"
+            cur.execute(f"""
+                SELECT {field_expr} AS label, COUNT(*)::bigint AS value
+                FROM bug_reports
+                {where_clause}
+                GROUP BY 1
+                ORDER BY value DESC
+                LIMIT %s
+            """, [*where_params, limit])
         else:
             field_expr = "dynamic_fields->>%s"
             where_params.insert(0, field_name)
             where_conds.append("dynamic_fields->>%s IS NOT NULL")
             where_params.append(field_name)
-
-        where_clause = f"WHERE {' AND '.join(where_conds)}"
-
-        cur.execute(f"""
-            SELECT {field_expr} AS label, COUNT(*)::bigint AS value
-            FROM bug_reports
-            {where_clause}
-            GROUP BY 1
-            ORDER BY value DESC
-            LIMIT %s
-        """, [*where_params, limit])
+            where_clause = f"WHERE {' AND '.join(where_conds)}"
+            cur.execute(f"""
+                SELECT {field_expr} AS label, COUNT(*)::bigint AS value
+                FROM bug_reports
+                {where_clause}
+                GROUP BY 1
+                ORDER BY value DESC
+                LIMIT %s
+            """, [*where_params, limit])
 
         rows = [dict(r) for r in cur.fetchall()]
         return {

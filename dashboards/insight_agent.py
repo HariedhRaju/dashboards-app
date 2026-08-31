@@ -412,16 +412,20 @@ REQUIRED JSON RESPONSE STRUCTURE:
   "data_scope": "All Projects"
 }}
 
-Note: If context represents a specific bug investigation, populate the 'investigation' field with:
+Note: If context represents a specific bug investigation, you MUST populate the 'investigation' field with:
 {{
   "entity_name": "BUG-1024",
   "entity_type": "bug",
-  "summary": "Detailed explanation of bug occurrences, severity, and status",
+  "summary": "Detailed explanation of: 1) Why that bug has happened (root cause analysis based on title, description/summary, and repro steps); 2) What is its severity and how it impacts the project; 3) What measures can be taken to avoid or prevent this bug in the future.",
   "total_bugs_in_scope": 4,
   "unresolved_count": 3,
   "reproduction_rate_info": "5/5 (Consistent)",
   "affected_projects": ["The Fertile Crescent", "CyberStrike 2099"],
-  "key_observations": ["Appears in multiple projects suggesting shared codebase issue."]
+  "key_observations": [
+    "Root Cause: [Reasoning why it happened]",
+    "Severity: [Analysis of why it has this severity]",
+    "Measures to avoid: [Actionable prevention steps]"
+  ]
 }}
 """
     return system_prompt, user_prompt

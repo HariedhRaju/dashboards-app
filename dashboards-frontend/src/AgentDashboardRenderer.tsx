@@ -1,7 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useFilters, useFilterActions } from './filters';
-import { fetchDashboardInsights, fetchBugDetails, type DashboardInsightsResponse } from './api';
+import {
+  fetchDashboardInsights,
+  fetchBugDetails,
+  fetchDashboardAnalysis,
+  fetchDynamicMetric,
+  type DashboardInsightsResponse,
+  type DashboardAnalysis,
+  type VisualizationPlan,
+} from './api';
 import {
   MetricWidget,
   TimeseriesWidget,
@@ -10,6 +18,13 @@ import {
   BarWidget,
   TableWidget,
 } from './widgets';
+import {
+  PieChart, Pie, Cell, Tooltip, ResponsiveContainer
+} from 'recharts';
+import {
+  Sparkles, Brain, CheckCircle2, AlertTriangle, RefreshCw, ChevronRight, Activity, Zap, Layers, ShieldAlert,
+  HelpCircle, Play, RotateCcw, AlertOctagon
+} from 'lucide-react';
 
 const API_BASE =
   (typeof import.meta !== 'undefined' && import.meta.env?.VITE_DASHBOARDS_API) || '';
@@ -160,10 +175,6 @@ function FilterSelect({
   );
 }
 
-// ---------------------------------------------------------------------------
-// Active filter pills
-// ---------------------------------------------------------------------------
-
 const FILTER_LABELS: Record<string, string> = {
   project_id: '🎮 Game',
   issue_no:   '🐛 Bug',
@@ -284,10 +295,6 @@ function QuickStatsBanner({ projectId }: { projectId?: string | null }) {
 // ---------------------------------------------------------------------------
 
 function BugDetailPanel({ issueNo, projectId }: { issueNo: string; projectId?: string | null }) {
-  const [analyzing, setAnalyzing] = useState(false);
-  const [aiText, setAiText] = useState<string | null>(null);
-  const [aiErr, setAiErr] = useState<string | null>(null);
-
   const { data: det, isPending, error } = useQuery<BugDetails>({
     queryKey: ['bug-det', issueNo, projectId],
     queryFn: async () => {
@@ -298,33 +305,6 @@ function BugDetailPanel({ issueNo, projectId }: { issueNo: string; projectId?: s
     retry: 1,
   });
 
-  const runAi = async () => {
-    if (!det) return;
-    setAnalyzing(true);
-    setAiErr(null);
-    try {
-      const res = await fetch(`${API_BASE}/api/bugs/insights`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          context: { field: 'issue_no', value: issueNo, type: 'issue_no' },
-          drilldown_data: det,
-          dashboard_plan: { dashboard_title: `Bug #${issueNo} Deep Dive` },
-        }),
-      });
-      if (!res.ok) throw new Error(`Insights ${res.status}`);
-      const json = await res.json();
-      const ins = json.insights as DashboardInsightsResponse;
-      setAiText(ins.executive_summary ?? ins.key_findings?.[0]?.explanation ?? 'Analysis complete.');
-    } catch (e: any) {
-      setAiErr(e.message);
-    } finally {
-      setAnalyzing(false);
-    }
-  };
-
-  // Loading skeleton
   if (isPending) {
     return (
       <div className="space-y-4 animate-pulse">
@@ -338,7 +318,6 @@ function BugDetailPanel({ issueNo, projectId }: { issueNo: string; projectId?: s
     );
   }
 
-  // Not found
   if (error || !det?.found) {
     return (
       <div className="bg-rose-950/30 border border-rose-800/50 rounded-2xl p-10 text-center space-y-3">
@@ -355,7 +334,6 @@ function BugDetailPanel({ issueNo, projectId }: { issueNo: string; projectId?: s
   const df  = bug.dynamic_fields ?? {};
   const multiGame = det.affected_projects.length > 1;
 
-  // Show any non-empty metadata from dynamic_fields
   const metaRows: [string, string][] = [
     ['Issue Type',   df.issue_type    || bug.issue_type],
     ['Repro Rate',   df.repro_rate    || bug.repro_rate],
@@ -368,10 +346,8 @@ function BugDetailPanel({ issueNo, projectId }: { issueNo: string; projectId?: s
 
   return (
     <div className="space-y-5">
-
       {/* Header card */}
       <div className="bg-gradient-to-br from-indigo-950/50 via-neutral-900 to-neutral-900 border border-indigo-800/40 rounded-2xl p-6 space-y-4">
-
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div className="space-y-2">
             <div className="flex items-center flex-wrap gap-2">
@@ -393,31 +369,7 @@ function BugDetailPanel({ issueNo, projectId }: { issueNo: string; projectId?: s
               {bug.reporter_name && <span>👤 {bug.reporter_name}</span>}
             </div>
           </div>
-
-          {/* AI Narrative button */}
-          <button
-            onClick={runAi}
-            disabled={analyzing}
-            className="shrink-0 flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 disabled:opacity-50 text-white font-semibold text-sm rounded-xl transition-all shadow-lg shadow-indigo-950/50 cursor-pointer"
-          >
-            {analyzing
-              ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /><span>Analyzing…</span></>
-              : <><span>✨</span><span>AI Narrative</span></>}
-          </button>
         </div>
-
-        {/* AI result */}
-        {aiText && (
-          <div className="bg-indigo-950/30 border border-indigo-800/40 rounded-xl p-4 text-sm text-indigo-100 leading-relaxed">
-            <div className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-2">✨ AI Analysis</div>
-            {aiText}
-          </div>
-        )}
-        {aiErr && (
-          <div className="bg-rose-950/30 border border-rose-800/40 rounded-xl p-3 text-xs text-rose-300">
-            AI unavailable — {aiErr}. The bug data above is complete without it.
-          </div>
-        )}
       </div>
 
       {/* Cross-game banner */}
@@ -440,7 +392,6 @@ function BugDetailPanel({ issueNo, projectId }: { issueNo: string; projectId?: s
 
       {/* Summary + metadata */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-
         <div className="bg-neutral-900/60 border border-neutral-800 rounded-2xl p-5 space-y-3">
           <div className="text-xs font-bold text-neutral-400 uppercase tracking-wider">📝 Summary</div>
           <p className="text-sm text-neutral-200 leading-relaxed">
@@ -491,28 +442,6 @@ function BugDetailPanel({ issueNo, projectId }: { issueNo: string; projectId?: s
                 {df.expected_result}
               </div>
             )}
-          </div>
-        </div>
-      )}
-
-      {/* All occurrences (multi-game) */}
-      {multiGame && det.records.length > 1 && (
-        <div className="bg-neutral-900/60 border border-neutral-800 rounded-2xl p-5 space-y-3">
-          <div className="text-xs font-bold text-neutral-400 uppercase tracking-wider">
-            📋 All Occurrences ({det.records.length})
-          </div>
-          <div className="space-y-2">
-            {det.records.map((r, i) => (
-              <div
-                key={r.bug_id}
-                className="flex items-center gap-3 text-xs bg-neutral-950/60 rounded-xl px-4 py-2.5 border border-neutral-800/60"
-              >
-                <span className="text-neutral-600 font-mono w-4">#{i + 1}</span>
-                <span className="text-neutral-300 flex-1 font-medium">{r.project_name || 'Unknown Game'}</span>
-                <SevBadge v={r.severity} />
-                <StatBadge v={r.status}  />
-              </div>
-            ))}
           </div>
         </div>
       )}
@@ -606,6 +535,7 @@ function OverviewPanel() {
         sortableColumns={['created_at', 'severity', 'status']}
         pageSize={20}
         columnConfig={{
+          issue_no:      { label: 'Bug #',     format: 'badge'          },
           title:         { label: 'Title'    },
           severity:      { label: 'Severity',  format: 'severity-badge' },
           status:        { label: 'Status',    format: 'status-badge'   },
@@ -620,6 +550,172 @@ function OverviewPanel() {
 }
 
 // ---------------------------------------------------------------------------
+// Dynamic AI-Generated Visualizations
+// ---------------------------------------------------------------------------
+
+function evaluateKPI(data: Array<{ label: string; value: number }>, calculation: string) {
+  const cleanCalc = (calculation || '').toLowerCase();
+  if (cleanCalc.includes("count of") || cleanCalc.includes("=")) {
+    const match = cleanCalc.match(/['"]([^'"]+)['"]/);
+    if (match) {
+      const targetVal = match[1];
+      const found = data.find(d => (d.label || '').toLowerCase() === targetVal);
+      return found ? found.value : 0;
+    }
+  }
+  return data.reduce((sum, d) => sum + d.value, 0);
+}
+
+function DynamicChart({
+  viz,
+  filters,
+  projFilter,
+}: {
+  viz: VisualizationPlan;
+  filters: any;
+  projFilter: string | null;
+}) {
+  const fieldName = viz.group_by?.[0] || viz.fields?.[0] || '';
+  const { data: res, isPending, error } = useQuery({
+    queryKey: ['dynamic-metric', fieldName, projFilter, filters, viz.aggregation],
+    queryFn: () =>
+      fetchDynamicMetric({
+        field_name: fieldName,
+        project_id: projFilter,
+        metric: viz.aggregation,
+        filters: filters,
+      }),
+    enabled: !!fieldName,
+  });
+
+  if (isPending) {
+    return (
+      <div className="h-44 flex items-center justify-center">
+        <div className="w-5 h-5 border-2 border-indigo-600/30 border-t-indigo-500 rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (error || !res || !res.data) {
+    return (
+      <div className="h-44 flex items-center justify-center text-xs text-neutral-500">
+        No metric data available for {fieldName}
+      </div>
+    );
+  }
+
+  const chartData = res.data;
+
+  if (viz.type === 'donut' || viz.type === 'pie') {
+    const COLORS = ['#818CF8', '#34D399', '#FBBF24', '#F472B6', '#22D3EE', '#F87171'];
+    return (
+      <div className="flex flex-col justify-between h-44">
+        <div className="flex-1 flex items-center justify-center min-h-[110px]">
+          <ResponsiveContainer width="100%" height={110}>
+            <PieChart>
+              <Pie
+                data={chartData}
+                dataKey="value"
+                nameKey="label"
+                innerRadius={25}
+                outerRadius={45}
+                paddingAngle={1}
+                stroke="none"
+              >
+                {chartData.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                ))}
+              </Pie>
+              <Tooltip
+                contentStyle={{
+                  fontSize: 11,
+                  background: '#171717',
+                  border: '1px solid #404040',
+                  borderRadius: 6,
+                  color: '#e5e5e5',
+                }}
+              />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="text-[10px] grid grid-cols-2 gap-1 overflow-y-auto max-h-[50px] border-t border-neutral-800/40 pt-1">
+          {chartData.map((d, i) => (
+            <div key={d.label || i} className="flex items-center gap-1 truncate text-neutral-400">
+              <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: COLORS[i % COLORS.length] }} />
+              <span className="truncate">{d.label || 'N/A'}:</span>
+              <span className="font-semibold text-neutral-200 tabular-nums">{d.value}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (viz.type === 'kpi') {
+    const kpiValue = evaluateKPI(chartData, viz.aggregation);
+    return (
+      <div className="h-44 flex flex-col justify-between p-2">
+        <div>
+          <div className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wider">Calculation</div>
+          <div className="text-xs text-neutral-300 font-mono mt-0.5 truncate">{viz.aggregation || 'count'}</div>
+        </div>
+        <div>
+          <div className="text-4xl font-extrabold text-indigo-400 tracking-tight tabular-nums">{kpiValue.toLocaleString()}</div>
+          <div className="text-[10px] text-neutral-500 mt-1 italic line-clamp-2">{viz.reason}</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (viz.type === 'table') {
+    return (
+      <div className="h-44 overflow-y-auto pr-1">
+        <table className="w-full text-[11px] text-left border-collapse">
+          <thead>
+            <tr className="text-[9px] uppercase tracking-wider text-neutral-500 font-bold border-b border-neutral-855">
+              <th className="py-1 px-2">Dimension</th>
+              <th className="py-1 px-2 text-right">Count</th>
+            </tr>
+          </thead>
+          <tbody>
+            {chartData.map((d, i) => (
+              <tr key={d.label || i} className="border-b border-neutral-900/40 last:border-b-0 hover:bg-neutral-800/10">
+                <td className="py-1.5 px-2 text-neutral-300 font-medium truncate max-w-[120px]">{d.label || 'N/A'}</td>
+                <td className="py-1.5 px-2 text-right text-neutral-400 font-bold tabular-nums">{d.value.toLocaleString()}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
+  // Fallback to bar list for bar/horizontal_bar/etc.
+  const maxVal = Math.max(...chartData.map(d => d.value), 1);
+  return (
+    <div className="h-44 overflow-y-auto space-y-2 pr-1 pt-1">
+      {chartData.map((d, i) => {
+        const pct = (d.value / maxVal) * 100;
+        return (
+          <div key={d.label || i} className="text-[11px]">
+            <div className="flex justify-between mb-0.5 text-neutral-300">
+              <span className="truncate max-w-[150px]">{d.label || 'N/A'}</span>
+              <span className="font-semibold text-neutral-400 tabular-nums">{d.value}</span>
+            </div>
+            <div className="h-1.5 bg-neutral-800 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-indigo-500 to-violet-500 rounded-full"
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main Export
 // ---------------------------------------------------------------------------
 
@@ -629,8 +725,89 @@ interface AgentDashboardRendererProps {
 
 export function AgentDashboardRenderer({ projectId }: AgentDashboardRendererProps) {
   const filters = useFilters();
+  const { setFilter } = useFilterActions();
   const issueNo    = filters.issue_no    as string | undefined;
   const projFilter = (filters.project_id as string | undefined) || projectId || null;
+
+  // AI states
+  const [isAnalyzedView, setIsAnalyzedView] = useState(false);
+  const [loadingAnalysis, setLoadingAnalysis] = useState(false);
+  const [analysisData, setAnalysisData] = useState<DashboardAnalysis | null>(null);
+  const [insightsData, setInsightsData] = useState<DashboardInsightsResponse | null>(null);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+
+  // Fetch games dimensions to map UUID to game name in the taskbar
+  const { data: projectOpts = [] } = useQuery<DimOption[]>({
+    queryKey: ['dim', 'bug_projects'],
+    queryFn: () => getDim('bug_projects'),
+    staleTime: 60_000,
+  });
+
+  const activeFilters = {
+    severity: filters.severity,
+    status: filters.status,
+    issue_no: issueNo,
+  };
+
+  // Reset analysis view and data when filters change
+  useEffect(() => {
+    setIsAnalyzedView(false);
+    setAnalysisData(null);
+    setInsightsData(null);
+    setAnalysisError(null);
+  }, [issueNo, projFilter, filters.severity, filters.status]);
+
+  const handleAnalyzeClick = async () => {
+    setLoadingAnalysis(true);
+    setAnalysisError(null);
+
+    try {
+      let bugDetailsData = null;
+      if (issueNo) {
+        bugDetailsData = await fetchBugDetails(issueNo, projFilter);
+      }
+
+      // Step 1: Fetch dynamic dashboard visualizations plan from AI
+      const plan = await fetchDashboardAnalysis({
+        project_id: projFilter,
+        filters: activeFilters,
+        context: issueNo ? { field: 'issue_no', value: issueNo } : undefined,
+      });
+      setAnalysisData(plan);
+
+      // Step 2: Fetch grounding insights and reasoning from AI
+      const insights = await fetchDashboardInsights({
+        project_id: projFilter,
+        filters: activeFilters,
+        dashboard_plan: plan,
+        drilldown_data: bugDetailsData,
+        context: issueNo ? { field: 'issue_no', value: issueNo, type: 'issue_no' } : undefined,
+      });
+      setInsightsData(insights);
+      setIsAnalyzedView(true);
+    } catch (err: any) {
+      setAnalysisError(err.message || 'Failed to generate AI analysis.');
+    } finally {
+      setLoadingAnalysis(false);
+    }
+  };
+
+  // Compile human readable description of the selected filters
+  const selectedProjOpt = projectOpts.find(o => o.value === projFilter);
+  const projLabel = selectedProjOpt ? selectedProjOpt.label : null;
+
+  let taskbarText = 'Displaying dashboard for ';
+  const filterDescParts: string[] = [];
+  if (issueNo) filterDescParts.push(`Bug #${issueNo}`);
+  if (projLabel) filterDescParts.push(`${projLabel} game`);
+  if (filters.severity) filterDescParts.push(`severity ${filters.severity}`);
+  if (filters.status) filterDescParts.push(`status ${filters.status}`);
+
+  if (filterDescParts.length > 0) {
+    taskbarText += filterDescParts.join(' and ');
+  } else {
+    taskbarText += 'all games and bugs';
+  }
 
   return (
     <div className="max-w-[1400px] mx-auto p-6 space-y-6">
@@ -649,7 +826,7 @@ export function AgentDashboardRenderer({ projectId }: AgentDashboardRendererProp
         </h1>
         <p className="text-sm text-neutral-400 mt-1">
           {issueNo
-            ? 'Full bug record fetched from the database. Click \u2728 AI Narrative to get LLM commentary on this bug.'
+            ? 'Full bug record fetched from the database. Click ✨ Analyze to trigger LLM reasoning and custom dashboard.'
             : projFilter
             ? 'Showing all metrics scoped to the selected game. Select a Bug # to drill into a specific record.'
             : 'Full overview across all games. Filter by game, bug #, severity, or status to drill down.'}
@@ -660,22 +837,248 @@ export function AgentDashboardRenderer({ projectId }: AgentDashboardRendererProp
       <div className="bg-neutral-900/60 border border-neutral-800 rounded-2xl p-5 space-y-3">
         <div className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">Filter by</div>
         <div className="flex flex-wrap gap-3">
-          <FilterSelect dimension="bug_projects"   param="project_id" placeholder="\ud83c\udfae All Games"      />
-          <FilterSelect dimension="bug_issues"     param="issue_no"   placeholder="\ud83d\udc1b All Bugs #"     />
-          <FilterSelect dimension="bug_severities" param="severity"   placeholder="\u26a0 All Severities"       />
-          <FilterSelect dimension="bug_statuses"   param="status"     placeholder="\ud83d\udccb All Statuses"   />
+          <FilterSelect dimension="bug_projects"   param="project_id" placeholder="🎮 All Games"      />
+          <FilterSelect dimension="bug_issues"     param="issue_no"   placeholder="🐛 All Bugs #"     />
+          <FilterSelect dimension="bug_severities" param="severity"   placeholder="⚠ All Severities"       />
+          <FilterSelect dimension="bug_statuses"   param="status"     placeholder="📋 All Statuses"   />
         </div>
         <ActivePills />
       </div>
 
-      {/* Quick stats — instant, always visible, auto-scoped to project if set */}
-      <QuickStatsBanner projectId={projFilter} />
+      {/* Interactive taskbar with Analyze button */}
+      <div className="bg-gradient-to-r from-neutral-900/90 to-neutral-950/90 border border-neutral-800 rounded-2xl px-5 py-4 flex items-center justify-between flex-wrap gap-4 shadow-lg backdrop-blur-sm">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-xl bg-indigo-500/10 border border-indigo-500/25 flex items-center justify-center text-indigo-400">
+            <Activity size={16} />
+          </div>
+          <div>
+            <div className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">Dashboard Scope</div>
+            <div className="text-sm text-neutral-200 font-medium capitalize mt-0.5">{taskbarText}</div>
+          </div>
+        </div>
+        
+        <div className="flex items-center gap-3">
+          {isAnalyzedView && (
+            <button
+              onClick={() => setIsAnalyzedView(false)}
+              className="flex items-center gap-1.5 px-4 py-2 bg-neutral-800 hover:bg-neutral-700/80 text-neutral-300 font-semibold text-xs rounded-xl border border-neutral-700 transition-all cursor-pointer"
+            >
+              <RotateCcw size={13} />
+              <span>Basic View</span>
+            </button>
+          )}
 
-      {/* Content — mode driven by active filter */}
-      {issueNo ? (
-        <BugDetailPanel issueNo={issueNo} projectId={projFilter} />
+          <button
+            onClick={handleAnalyzeClick}
+            disabled={loadingAnalysis}
+            className="flex items-center gap-2 px-5 py-2 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 disabled:opacity-50 text-white font-semibold text-xs rounded-xl transition-all shadow-md shadow-indigo-950/40 cursor-pointer"
+          >
+            {loadingAnalysis ? (
+              <>
+                <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <span>Running Agent...</span>
+              </>
+            ) : (
+              <>
+                <Sparkles size={13} />
+                <span>Analyze</span>
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* Error state */}
+      {analysisError && (
+        <div className="bg-rose-950/30 border border-rose-900/50 rounded-2xl p-4 flex items-start gap-3">
+          <AlertOctagon className="text-rose-400 shrink-0 mt-0.5" size={16} />
+          <div className="text-xs text-rose-300 leading-relaxed">
+            <span className="font-bold">AI Analysis Offline:</span> {analysisError}. You can still use the Basic View below.
+          </div>
+        </div>
+      )}
+
+      {/* Main Content Area */}
+      {!isAnalyzedView ? (
+        <div className="space-y-6">
+          <QuickStatsBanner projectId={projFilter} />
+          {issueNo ? (
+            <BugDetailPanel issueNo={issueNo} projectId={projFilter} />
+          ) : (
+            <OverviewPanel />
+          )}
+        </div>
       ) : (
-        <OverviewPanel />
+        <div className="space-y-6 animate-fadeIn">
+          {/* AI Analyzed Reasoning Header */}
+          {insightsData && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              
+              {/* Executive Summary */}
+              <div className="lg:col-span-2 bg-gradient-to-br from-indigo-950/40 via-neutral-900 to-neutral-900 border border-indigo-900/35 rounded-2xl p-5 space-y-3 shadow-md">
+                <div className="flex items-center gap-2 text-indigo-400">
+                  <Brain size={18} strokeWidth={2.5} />
+                  <h3 className="text-sm font-bold uppercase tracking-wider">AI Executive Analysis</h3>
+                </div>
+                <p className="text-sm text-indigo-100/90 leading-relaxed font-normal">
+                  {insightsData.executive_summary}
+                </p>
+              </div>
+
+              {/* Scope Card */}
+              <div className="bg-neutral-900 border border-neutral-850 rounded-2xl p-5 flex flex-col justify-between">
+                <div>
+                  <div className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-2">Scope Summary</div>
+                  <div className="text-xs text-neutral-300 space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-neutral-500">Selected Game:</span>
+                      <span className="font-semibold text-neutral-200">{projLabel || 'All Games'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-neutral-500">Selected Bug:</span>
+                      <span className="font-semibold text-neutral-200">{issueNo ? `#${issueNo}` : 'All'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-neutral-500">Filter Scope:</span>
+                      <span className="font-mono text-neutral-200">{insightsData.data_scope}</span>
+                    </div>
+                  </div>
+                </div>
+                {insightsData.recommendations?.[0] && (
+                  <div className="border-t border-neutral-800/60 pt-3 mt-3 text-[11px] text-neutral-400">
+                    <span className="text-amber-400 font-bold mr-1">💡 Key Action:</span>
+                    {insightsData.recommendations[0].action}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Bug Investigation Deep-Dive (Visible when a specific bug is analyzed) */}
+          {insightsData?.investigation && (
+            <div className="bg-gradient-to-br from-neutral-900 via-neutral-900 to-indigo-950/15 border border-neutral-800 rounded-2xl p-6 space-y-5 shadow-lg">
+              <div className="flex items-center gap-2 border-b border-neutral-800 pb-3">
+                <span className="text-xs font-bold uppercase tracking-widest text-indigo-400 bg-indigo-950/60 border border-indigo-800/40 px-3 py-1 rounded-lg">
+                  🔍 Bug Root Cause & Prevention Analysis
+                </span>
+              </div>
+
+              {/* Dynamic stats */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-neutral-950/40 border border-neutral-850 rounded-xl p-3.5">
+                  <div className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">Total Repeats</div>
+                  <div className="text-xl font-bold text-neutral-200 tabular-nums mt-1">{insightsData.investigation.total_bugs_in_scope} times</div>
+                </div>
+                <div className="bg-neutral-950/40 border border-neutral-850 rounded-xl p-3.5">
+                  <div className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">Unresolved Occurrences</div>
+                  <div className="text-xl font-bold text-neutral-200 tabular-nums mt-1">{insightsData.investigation.unresolved_count} open</div>
+                </div>
+                <div className="bg-neutral-950/40 border border-neutral-850 rounded-xl p-3.5">
+                  <div className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">Reproduction Rate</div>
+                  <div className="text-xl font-bold text-indigo-400 mt-1">{insightsData.investigation.reproduction_rate_info || 'N/A'}</div>
+                </div>
+                <div className="bg-neutral-950/40 border border-neutral-850 rounded-xl p-3.5">
+                  <div className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">Affected Games</div>
+                  <div className="text-sm font-semibold text-neutral-200 mt-2 truncate">
+                    {insightsData.investigation.affected_projects?.join(', ') || 'N/A'}
+                  </div>
+                </div>
+              </div>
+
+              {/* Root Cause Details */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
+                <div className="md:col-span-2 bg-neutral-950/30 border border-neutral-850 rounded-xl p-4 space-y-2">
+                  <div className="text-xs font-bold text-neutral-450 uppercase tracking-wider">Root Cause Reasoning</div>
+                  <p className="text-xs text-neutral-300 leading-relaxed whitespace-pre-line">
+                    {insightsData.investigation.summary}
+                  </p>
+                </div>
+
+                <div className="bg-neutral-950/30 border border-neutral-850 rounded-xl p-4 space-y-3">
+                  <div className="text-xs font-bold text-neutral-450 uppercase tracking-wider">Actionable Prevention Measures</div>
+                  <ul className="space-y-2">
+                    {insightsData.investigation.key_observations?.map((obs, index) => {
+                      const isObsRoot = obs.startsWith("Root Cause:");
+                      const isObsSev = obs.startsWith("Severity:");
+                      const isObsMeas = obs.startsWith("Measures to avoid:");
+
+                      return (
+                        <li key={index} className="text-xs text-neutral-300 leading-relaxed flex items-start gap-2">
+                          {isObsRoot ? <span className="text-indigo-400 shrink-0">🔬</span> : 
+                           isObsSev ? <span className="text-rose-400 shrink-0">🚨</span> : 
+                           isObsMeas ? <span className="text-emerald-400 shrink-0">✅</span> : 
+                           <span className="text-neutral-500 shrink-0">•</span>}
+                          <span>
+                            <strong className="text-neutral-200">{obs.split(':')[0]}:</strong>
+                            {obs.split(':').slice(1).join(':')}
+                          </span>
+                        </li>
+                      );
+                    })}
+                    {(!insightsData.investigation.key_observations || insightsData.investigation.key_observations.length === 0) && (
+                      <p className="text-xs text-neutral-500">No key observations available.</p>
+                    )}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Actionable Recommendations list */}
+          {insightsData?.recommendations && insightsData.recommendations.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {insightsData.recommendations.map((rec, i) => (
+                <div key={i} className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="w-5 h-5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center text-[10px] font-bold">
+                      {i + 1}
+                    </span>
+                    <h4 className="text-xs font-bold text-neutral-200">{rec.title}</h4>
+                  </div>
+                  <p className="text-xs text-neutral-300 leading-relaxed pl-7">{rec.action}</p>
+                  <p className="text-[10px] text-neutral-500 italic pl-7">Rationale: {rec.rationale}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Adaptive Dynamic Dashboard Visualizations */}
+          {analysisData && analysisData.visualizations && analysisData.visualizations.length > 0 && (
+            <div className="space-y-4">
+              <div className="flex flex-col gap-1 border-b border-neutral-800 pb-2">
+                <h2 className="text-lg font-bold text-neutral-100 flex items-center gap-2">
+                  <Layers size={18} className="text-indigo-400" />
+                  <span>📊 AI Adaptive Visualizations</span>
+                </h2>
+                <p className="text-xs text-neutral-400">{analysisData.dashboard_purpose}</p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {analysisData.visualizations.map((viz) => (
+                  <div key={viz.id} className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 flex flex-col justify-between hover:border-neutral-700 transition-colors">
+                    <div>
+                      <div className="flex justify-between items-start gap-2 mb-2">
+                        <h3 className="text-xs font-bold text-neutral-200 line-clamp-1">{viz.title}</h3>
+                        <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-neutral-800 text-neutral-400 border border-neutral-700/60 shrink-0">
+                          {viz.type}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-neutral-500 leading-snug mb-3 line-clamp-2">{viz.insight_goal}</p>
+                    </div>
+
+                    <div className="bg-neutral-950/40 border border-neutral-900 rounded-lg p-2.5">
+                      <DynamicChart
+                        viz={viz}
+                        filters={activeFilters}
+                        projFilter={projFilter}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
     </div>

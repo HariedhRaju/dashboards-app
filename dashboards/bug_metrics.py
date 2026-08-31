@@ -335,7 +335,8 @@ def bugs_telemetry(cur: RealDictCursor, f: BugTelemetryFilters) -> dict:
     total = cur.fetchone()["total"]
 
     cur.execute(f"""
-        SELECT b.title,
+        SELECT COALESCE(b.dynamic_fields->>'source_record_id', b.dynamic_fields->>'issue_no', b.id::text) AS issue_no,
+               b.title,
                b.severity,
                b.status,
                COALESCE(p.name, 'Unassigned')       AS project_name,
@@ -355,6 +356,6 @@ def bugs_telemetry(cur: RealDictCursor, f: BugTelemetryFilters) -> dict:
         r["created_at"] = r["created_at"].isoformat()
 
     return {"kind": "table",
-            "columns": ["title", "severity", "status", "project_name",
+            "columns": ["issue_no", "title", "severity", "status", "project_name",
                         "reporter_name", "created_at", "age_days"],
             "rows": rows, "total": total, "format": "number"}

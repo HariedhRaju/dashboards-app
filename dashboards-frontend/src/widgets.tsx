@@ -846,6 +846,8 @@ export function TableWidget({
   compact?: boolean;
   refetchMs?: number;
 }) {
+  const { setFilter } = useFilterActions();
+  const isTelemetry = metric === 'bugs.telemetry';
   const effectivePageSize = pageSize ?? 15;
   const [page, setPage] = useState(1);
   const [sort, setSort] = useState({ col: 'total_tokens', dir: 'desc' as 'asc' | 'desc' });
@@ -923,7 +925,18 @@ export function TableWidget({
               </tr>
             )}
             {data.rows.map((row, i) => (
-              <tr key={i} className="border-b border-neutral-800/50 last:border-b-0 hover:bg-neutral-800/30">
+              <tr
+                key={i}
+                onClick={() => {
+                  if (isTelemetry && row.issue_no) {
+                    setFilter('issue_no', String(row.issue_no));
+                  }
+                }}
+                className={clsx(
+                  "border-b border-neutral-800/50 last:border-b-0",
+                  isTelemetry ? "hover:bg-indigo-950/20 cursor-pointer hover:text-indigo-300 transition-colors" : "hover:bg-neutral-800/30"
+                )}
+              >
                 {columns.map(col => {
                   const cfg = configs[col];
                   return (
