@@ -11,6 +11,7 @@ Configure via environment variables:
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from agent.api import router as agent_router
 from dashboards import router as dashboards_router
 
 app = FastAPI(title="Dashboards Dev")
@@ -27,6 +28,12 @@ app.add_middleware(
 )
 
 app.include_router(dashboards_router, prefix="/api")
+
+# The QA agent: ingest a workbook or a Postgres source, analyze it, serve the
+# narrated report. Mounted under the same prefix so the dashboard talks to one
+# origin — /api/qa/* is the agent, /api/metrics/* is the dashboard reading what
+# the agent produced.
+app.include_router(agent_router, prefix="/api")
 
 
 @app.get("/")

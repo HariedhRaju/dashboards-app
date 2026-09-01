@@ -30,10 +30,18 @@ const GRID_COLOR    = '#262626';
 const AXIS_TEXT     = '#737373';
 const TOOLTIP_BG    = '#171717';
 const TOOLTIP_BORDER = '#404040';
+// Recharts' <Tooltip> only themes its own box via `contentStyle` — the
+// name/value line it renders per series (`itemStyle`) defaults to black
+// regardless, which on this dark card is invisible unless set explicitly.
+// Shared here so every chart's tooltip text is legible, not just the box.
+const TOOLTIP_ITEM_STYLE = { color: '#e5e5e5' };
 
 // Semantic colors for bug severity + status.
 const SEVERITY_COLORS: Record<string, string> = {
   P1: '#F87171', P2: '#FBBF24', P3: '#818CF8', P4: '#FB923C',
+  // The QA agent's named severity scale — same ramp, its own vocabulary.
+  Blocker: '#F87171', Critical: '#FB923C', Major: '#FBBF24',
+  Minor: '#818CF8', Trivial: '#737373',
 };
 const STATUS_COLORS: Record<string, string> = {
   open: '#FBBF24', in_progress: '#22D3EE', fixed: '#34D399', closed: '#94A3B8',
@@ -95,7 +103,9 @@ function codeColor(code: string) {
 //  Shared building blocks
 // ══════════════════════════════════════════════════════════════════════════
 
-function Card({ children, className }: { children: ReactNode; className?: string }) {
+// Exported so the QA agent widgets in qa-widgets.tsx render inside the same
+// shell as everything else — one card chrome, defined once.
+export function Card({ children, className }: { children: ReactNode; className?: string }) {
   return (
     <div className={clsx(
       'bg-neutral-900 border border-neutral-800 rounded-xl p-4 h-full flex flex-col',
@@ -106,7 +116,7 @@ function Card({ children, className }: { children: ReactNode; className?: string
   );
 }
 
-function CardHeader({ title, right, icon }: { title: string; right?: ReactNode; icon?: LucideIcon }) {
+export function CardHeader({ title, right, icon }: { title: string; right?: ReactNode; icon?: LucideIcon }) {
   const Icon = icon;
   return (
     <div className="flex items-center justify-between mb-3">
@@ -119,11 +129,11 @@ function CardHeader({ title, right, icon }: { title: string; right?: ReactNode; 
   );
 }
 
-function Skeleton({ className }: { className?: string }) {
+export function Skeleton({ className }: { className?: string }) {
   return <div className={clsx('bg-neutral-800/60 rounded animate-pulse', className)} />;
 }
 
-function ErrorState({ onRetry }: { onRetry: () => void }) {
+export function ErrorState({ onRetry }: { onRetry: () => void }) {
   return (
     <div className="text-sm text-red-300 bg-red-950/30 border border-red-900 rounded-md p-3">
       Couldn't load. <button onClick={onRetry} className="underline hover:text-red-200">Retry</button>
@@ -265,6 +275,7 @@ export function TimeseriesWidget({
                 border: `1px solid ${TOOLTIP_BORDER}`, borderRadius: 6, color: '#e5e5e5',
               }}
               labelStyle={{ color: '#a3a3a3' }}
+              itemStyle={TOOLTIP_ITEM_STYLE}
               labelFormatter={t => formatDate(parseISO(t as string), 'MMM d, yyyy')}
               formatter={(v: number) => formatValue(v, data.format)}
             />
@@ -306,6 +317,7 @@ export function DonutWidget({ metric, title, colorScheme }: { metric: string; ti
             </Pie>
             <Tooltip
               contentStyle={{ fontSize: 12, background: TOOLTIP_BG, border: `1px solid ${TOOLTIP_BORDER}`, borderRadius: 6, color: '#e5e5e5' }}
+              itemStyle={TOOLTIP_ITEM_STYLE}
               formatter={(v: number) => formatValue(v, data.format)}
             />
           </PieChart>
@@ -617,11 +629,19 @@ function renderCell(col: string, value: unknown, cfg: ColumnConfig): ReactNode {
       return <span className="text-neutral-500">{String(value)}</span>;
     case 'severity-badge': {
       const sev = String(value);
+      // P1-P4 (the bug_reports dashboard's own scale) and the QA agent's
+      // named severities share one map — both rank worst-to-least-bad, so
+      // the same red-to-neutral ramp reads correctly for either vocabulary.
       const styles: Record<string, string> = {
         P1: 'bg-red-500/15 text-red-400',
         P2: 'bg-amber-500/15 text-amber-400',
         P3: 'bg-indigo-500/15 text-indigo-400',
         P4: 'bg-orange-500/15 text-orange-400',
+        Blocker:  'bg-red-500/15 text-red-400',
+        Critical: 'bg-orange-500/15 text-orange-400',
+        Major:    'bg-amber-500/15 text-amber-400',
+        Minor:    'bg-indigo-500/15 text-indigo-400',
+        Trivial:  'bg-neutral-600/30 text-neutral-400',
       };
       return (
         <span className={clsx('inline-block px-2 py-0.5 text-[10px] font-semibold rounded', styles[sev] ?? 'bg-neutral-700 text-neutral-300')}>
@@ -630,25 +650,42 @@ function renderCell(col: string, value: unknown, cfg: ColumnConfig): ReactNode {
       );
     }
     case 'status-badge': {
-      const st = String(value);
+      const raw = String(value);
+      // Normalized once so every dashboard's spelling lands on one key —
+      // token/bug_reports write 'in_progress', the QA agent writes
+      // 'In Progress'. Without this the QA statuses (title case, spaces)
+      // matched nothing here and every badge fell through to the same grey
+      // default, which is why Closed/QA Ready/In Progress all looked identical.
+      const key = raw.toLowerCase().replace(/[\s-]+/g, '_');
       const styles: Record<string, string> = {
-        open:        'bg-amber-500/15 text-amber-400',
-        in_progress: 'bg-cyan-500/15 text-cyan-400',
-        fixed:       'bg-emerald-500/15 text-emerald-400',
-        closed:      'bg-neutral-600/30 text-neutral-400',
-        success:     'bg-emerald-500/15 text-emerald-400',
-        partial:     'bg-amber-500/15 text-amber-400',
-        failed:      'bg-red-500/15 text-red-400',
+        open:         'bg-amber-500/15 text-amber-400',
+        in_progress:  'bg-cyan-500/15 text-cyan-400',
+        qa_ready:     'bg-violet-500/15 text-violet-400',
+        fixed:        'bg-emerald-500/15 text-emerald-400',
+        closed:       'bg-neutral-600/30 text-neutral-400',
+        deferred:     'bg-neutral-600/30 text-neutral-500',
+        unknown:      'bg-neutral-700/40 text-neutral-400',
+        success:      'bg-emerald-500/15 text-emerald-400',
+        partial:      'bg-amber-500/15 text-amber-400',
+        failed:       'bg-red-500/15 text-red-400',
+        pass:         'bg-emerald-500/15 text-emerald-400',
+        fail:         'bg-red-500/15 text-red-400',
+        some_issue:   'bg-amber-500/15 text-amber-400',
+        blocked:      'bg-pink-500/15 text-pink-400',
+        not_run:      'bg-neutral-700/40 text-neutral-400',
       };
       const dot: Record<string, string> = {
-        open: 'bg-amber-400', in_progress: 'bg-cyan-400',
-        fixed: 'bg-emerald-400', closed: 'bg-neutral-400',
+        open: 'bg-amber-400', in_progress: 'bg-cyan-400', qa_ready: 'bg-violet-400',
+        fixed: 'bg-emerald-400', closed: 'bg-neutral-400', deferred: 'bg-neutral-500',
+        unknown: 'bg-neutral-500',
         success: 'bg-emerald-400', partial: 'bg-amber-400', failed: 'bg-red-400',
+        pass: 'bg-emerald-400', fail: 'bg-red-400', some_issue: 'bg-amber-400',
+        blocked: 'bg-pink-400', not_run: 'bg-neutral-500',
       };
       return (
-        <span className={clsx('inline-flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-medium rounded', styles[st] ?? 'bg-neutral-700 text-neutral-300')}>
-          <span className={clsx('w-1.5 h-1.5 rounded-full', dot[st])} />
-          {st.replace('_', ' ')}
+        <span className={clsx('inline-flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-medium rounded', styles[key] ?? 'bg-neutral-700 text-neutral-300')}>
+          <span className={clsx('w-1.5 h-1.5 rounded-full', dot[key] ?? 'bg-neutral-400')} />
+          {raw}
         </span>
       );
     }

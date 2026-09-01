@@ -6,6 +6,7 @@ export const registry: Record<string, () => Promise<{ default: DashboardDef }>> 
   'token-usage': () => import('./dashboards/token-usage'),
   'bug-reports': () => import('./dashboards/bug-reports'),
   'test-cases':  () => import('./dashboards/test-cases'),
+  'qa-insights': () => import('./dashboards/qa-insights'),
 };
 
 export async function loadDashboard(slug: string): Promise<DashboardDef | null> {
@@ -19,4 +20,5 @@ export const dashboardIndex = [
   { slug: 'token-usage', title: 'Token usage', category: 'ops' },
   { slug: 'bug-reports', title: 'Bug reports', category: 'quality' },
   { slug: 'test-cases',  title: 'Test case generation', category: 'quality' },
+  { slug: 'qa-insights', title: 'QA insights (agent)',  category: 'quality' },
 ] as const;

@@ -1,4 +1,3 @@
-@"
 # Python
 .venv/
 __pycache__/
@@ -15,4 +14,16 @@ dist/
 # OS
 .DS_Store
 Thumbs.db
-"@ | Out-File -Encoding utf8 .gitignore
+
+# Installers and other large binaries. The Ollama installer was found sitting
+# in dashboards-frontend/src/ — 1.5 GB inside the Vite source tree, one
+# `git add -A` away from the history. Nothing executable belongs in src/.
+*.exe
+*.msi
+*.dmg
+*.zip
+
+# Local QA workbooks. Test data is often confidential, and a workbook dropped
+# in the repo root to try the agent should not become a commit.
+*.xlsx
+*.xlsm

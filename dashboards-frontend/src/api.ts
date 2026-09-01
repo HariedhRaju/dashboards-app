@@ -6,7 +6,7 @@ import type { Format, MetricResponse } from './types';
 // API base URL — override via VITE_DASHBOARDS_API or fall back to same-origin.
 // ---------------------------------------------------------------------------
 
-const API_BASE =
+export const API_BASE =
   (typeof import.meta !== 'undefined' && import.meta.env?.VITE_DASHBOARDS_API) ||
   '';
 
