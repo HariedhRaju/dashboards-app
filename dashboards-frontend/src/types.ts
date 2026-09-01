@@ -47,12 +47,79 @@ export interface MatrixResponse {
   format: Format;
 }
 
+/**
+ * A grid whose cells carry a STATUS rather than a count — the localization
+ * matrix. Distinct from MatrixResponse because the colour of a cell is decided
+ * by its own outcome, not by its magnitude relative to a column.
+ */
+export interface StatusMatrixRow {
+  item: string;
+  section: string | null;
+  cells: Record<string, string>;        // dimension → status
+  not_passing: number;
+  comment?: string | null;
+}
+
+export interface StatusMatrixResponse {
+  kind: 'status_matrix';
+  columns: string[];                    // e.g. ['Chinese','English','French', …]
+  rows: StatusMatrixRow[];
+  statuses: string[];                   // the vocabulary, for the legend
+  format: Format;
+}
+
+/** One themed section of the report, with the ids its body cites. */
+export interface ReportSection {
+  title: string;
+  body: string;
+  citations: string[];
+}
+
+/** The agent's narrated summary. `available: false` until an analysis has run. */
+export interface NarrativeResponse {
+  kind: 'narrative';
+  available: boolean;
+  verdict: 'healthy' | 'caution' | 'at_risk' | 'blocked' | 'unknown';
+  headline: string;
+  narrative: string;
+  sections: ReportSection[];
+  recommendation: string;
+  risks: string[];
+  generated_at: string | null;
+  model_enabled: boolean;
+  model_name: string | null;
+  partial: boolean;
+}
+
+export interface Finding {
+  id: string;
+  kind: string;
+  level: 'critical' | 'warning' | 'info';
+  title: string;
+  detail: string;
+  impact: number;
+  value: number | null;
+  unit: 'count' | 'percent' | 'days';
+  evidence: Record<string, unknown>[];
+}
+
+export interface FindingsResponse {
+  kind: 'findings';
+  available: boolean;
+  findings: Finding[];
+  counts: { critical: number; warning: number; info: number };
+  generated_at: string | null;
+}
+
 export type MetricResponse =
   | ScalarResponse
   | SeriesResponse
   | GroupResponse
   | TableResponse
-  | MatrixResponse;
+  | MatrixResponse
+  | StatusMatrixResponse
+  | NarrativeResponse
+  | FindingsResponse;
 
 // ---------------------------------------------------------------------------
 // Dashboard config types
@@ -73,6 +140,16 @@ export type Widget =
   | { type: 'bar';        metric: string; title: string; colorScheme?: 'default' | 'severity' | 'status' | 'priority'; highlightZero?: boolean }
   | { type: 'gauge';      metric: string; title: string; badge?: string; unit?: string }
   | { type: 'heatmap';    metric: string; title: string; note?: string }
+  | { type: 'statusmatrix'; metric: string; title: string; note?: string }
+  | { type: 'narrative';  metric: string; title: string; emptyHint?: string }
+  | {
+      type: 'findings';
+      metric: string;
+      title: string;
+      /** Cap the list; the rest stay behind a "show all" toggle. */
+      limit?: number;
+      emptyHint?: string;
+    }
   | {
       type: 'table';
       metric: string;
@@ -107,6 +184,16 @@ export interface LayoutCell {
   widget: Widget;
   hideWhen?: HideWhen;
   /**
+   * Capability keys this cell needs before it is worth rendering, resolved
+   * against `DashboardDef.capabilities`. A cell whose keys are not all
+   * satisfied is dropped and its row rebalances around it.
+   *
+   * This is about the SHAPE of the data, not its values: a workbook with no
+   * localization sheet should not show a locale heatmap, an empty locale bar
+   * and a "0.0%" localization KPI — three tiles reporting one absence.
+   */
+  requires?: string[];
+  /**
    * When true, the cell grows to fit its content instead of being clamped to
    * `h` fixed rows. Use for data-driven widgets (heatmaps, long compact tables)
    * so they never show an internal scrollbar. `h` still acts as a minimum.
@@ -120,6 +207,16 @@ export interface DashboardDef {
   category?: string;
   requires?: string[];
   filterBar?: FilterDropdown[];   // dropdowns shown in the filter bar
+  /**
+   * Endpoint returning `{ capabilities: Record<string, boolean> }` describing
+   * what the current data actually contains. Cells declaring `requires` are
+   * filtered against it. Omitted, every cell renders.
+   */
+  capabilities?: string;
+  /** Optional control panel rendered above the grid. */
+  console?: 'qa';
+  /** Hide the date-range presets when they do not apply to this data. */
+  hideDateRange?: boolean;
   layout: LayoutCell[];
 }
 

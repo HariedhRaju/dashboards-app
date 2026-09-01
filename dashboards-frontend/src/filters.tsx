@@ -166,7 +166,17 @@ function DimensionSelect({ dropdown }: { dropdown: FilterDropdown }) {
 // FilterBar — dashboard declares its dropdowns via `filterBar`
 // ---------------------------------------------------------------------------
 
-export function FilterBar({ title, dropdowns }: { title: string; dropdowns?: FilterDropdown[] }) {
+export function FilterBar({ title, dropdowns, showRange = true }: {
+  title: string;
+  dropdowns?: FilterDropdown[];
+  /**
+   * Hide the range presets on dashboards where they do nothing. On the QA
+   * dashboard the snapshot is the unit of scope, so every preset resolves to
+   * the same snapshot — a control that visibly changes nothing when clicked
+   * reads as a broken dashboard rather than an inapplicable filter.
+   */
+  showRange?: boolean;
+}) {
   const filters = useFilters();
   const { setRange } = useFilterActions();
   const activePreset = detectActivePreset(filters);
@@ -180,7 +190,10 @@ export function FilterBar({ title, dropdowns }: { title: string; dropdowns?: Fil
     <div className="flex flex-col gap-3 mb-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-xl font-semibold text-neutral-100">{title}</h1>
-        <div className="inline-flex border border-neutral-800 rounded-md overflow-hidden text-sm">
+        <div className={
+          'inline-flex border border-neutral-800 rounded-md overflow-hidden text-sm' +
+          (showRange ? '' : ' hidden')
+        }>
           {RANGE_PRESETS.map(p => (
             <button
               key={p.label}

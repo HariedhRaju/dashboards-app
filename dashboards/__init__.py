@@ -136,6 +136,27 @@ class TestCaseFilters(BaseModel):
     grain: Grain | None = None  # Only used by series metrics
 
 
+class QaFilters(BaseModel):
+    """Filters accepted by every qa_insights metric.
+
+    `snapshot_id` pins the metric to one ingested workbook. Left out, metrics
+    resolve to the newest snapshot ingested on or before `date_range_end`.
+    That is what makes the shared date range meaningful for data that has no
+    per-row date of its own: bugs are filtered by their `created` date, while
+    test cases and localization cells are the *state* of a snapshot, so the
+    range selects which snapshot is being looked at rather than which rows.
+    """
+    date_range_start: datetime
+    date_range_end: datetime
+    snapshot_id: UUID | None = None
+    severity: str | None = None
+    status: str | None = None
+    issue_type: str | None = None
+    module: str | None = None
+    dimension: str | None = None
+    grain: Grain | None = None  # Only used by series metrics
+
+
 def auto_grain(start: datetime, end: datetime) -> Grain:
     """Pick a sensible grain based on range span."""
     delta = end - start
@@ -181,7 +202,8 @@ def register_metric(
         def tokens_total(cur, filters):
             ...
     """
-    if kind not in {"scalar", "series", "group", "table", "matrix"}:
+    if kind not in {"scalar", "series", "group", "table", "matrix",
+                    "status_matrix", "findings", "narrative"}:
         raise ValueError(f"Unknown metric kind: {kind!r}")
 
     def decorator(fn: Callable) -> Callable:
@@ -279,6 +301,35 @@ _DIMENSION_QUERIES: dict[str, str] = {
     "tc_test_types":
         "SELECT unnest(ARRAY['happy_path','negative','boundary','error_handling']) AS value, "
         "unnest(ARRAY['happy path','negative','boundary','error handling']) AS label",
+    # QA insights dimensions — all drawn from the newest snapshot, since a
+    # dropdown offering values from a workbook nobody is looking at is noise.
+    "qa_snapshots":
+        "SELECT id::text AS value, "
+        "       source_label || ' — ' || to_char(ingested_at, 'DD Mon HH24:MI') AS label "
+        "FROM qa_snapshots ORDER BY ingested_at DESC LIMIT 50",
+    "qa_severities":
+        "SELECT DISTINCT severity AS value, severity AS label FROM qa_bugs "
+        "WHERE snapshot_id = (SELECT id FROM qa_snapshots ORDER BY ingested_at DESC LIMIT 1) "
+        "ORDER BY value",
+    "qa_statuses":
+        "SELECT DISTINCT status AS value, status AS label FROM qa_bugs "
+        "WHERE snapshot_id = (SELECT id FROM qa_snapshots ORDER BY ingested_at DESC LIMIT 1) "
+        "ORDER BY value",
+    "qa_issue_types":
+        "SELECT DISTINCT issue_type AS value, issue_type AS label FROM qa_bugs "
+        "WHERE issue_type IS NOT NULL "
+        "AND snapshot_id = (SELECT id FROM qa_snapshots ORDER BY ingested_at DESC LIMIT 1) "
+        "ORDER BY value",
+    "qa_modules":
+        "SELECT DISTINCT COALESCE(module, section) AS value, "
+        "       COALESCE(module, section) AS label FROM qa_test_cases "
+        "WHERE COALESCE(module, section) IS NOT NULL "
+        "AND snapshot_id = (SELECT id FROM qa_snapshots ORDER BY ingested_at DESC LIMIT 1) "
+        "ORDER BY value",
+    "qa_dimensions":
+        "SELECT DISTINCT dimension AS value, dimension AS label FROM qa_matrix_results "
+        "WHERE snapshot_id = (SELECT id FROM qa_snapshots ORDER BY ingested_at DESC LIMIT 1) "
+        "ORDER BY value",
 }
 
 
@@ -310,3 +361,4 @@ def get_dimension(name: str) -> Any:
 from . import metrics as _metrics  # noqa: E402, F401
 from . import bug_metrics as _bug_metrics  # noqa: E402, F401
 from . import testcase_metrics as _testcase_metrics  # noqa: E402, F401
+from . import qa_metrics as _qa_metrics  # noqa: E402, F401
