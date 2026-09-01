@@ -126,7 +126,7 @@ export function DashboardRenderer({ def }: { def: DashboardDef }) {
     <div className="max-w-[1400px] mx-auto p-6">
       <FilterBar
         title={def.title}
-        dropdowns={def.filterBar}
+        dropdowns={isBugReports ? undefined : def.filterBar}
       />
 
       {isBugReports ? (

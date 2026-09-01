@@ -118,9 +118,12 @@ def call_llm_json(
     )
 
     try:
+        print(f"\n[LLM Client] Sending request to Ollama ({active_model})...")
+        print(f"[LLM Client] Prompt: {prompt[:300]}...")
         with urllib.request.urlopen(req, timeout=timeout) as response:
             res_body = json.loads(response.read().decode("utf-8"))
             raw_response_text = res_body.get("response", "").strip()
+            print(f"[LLM Client] Received response ({len(raw_response_text)} chars).")
 
             if not raw_response_text:
                 raise OllamaModelError(f"Ollama model '{active_model}' returned empty response.")

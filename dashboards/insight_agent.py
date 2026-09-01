@@ -23,9 +23,186 @@ from . import replica_cursor
 _INSIGHTS_CACHE: Dict[str, Dict[str, Any]] = {}
 
 
-# ══════════════════════════════════════════════════════════════════════════
-#  RECORD-LEVEL BUG RETRIEVAL HELPER
-# ══════════════════════════════════════════════════════════════════════════
+import csv
+import os
+import time
+
+_TESTPLAN_CACHE = None
+
+
+def load_testplan_for_bug(bug_id: str) -> List[Dict[str, Any]]:
+    global _TESTPLAN_CACHE
+    matches = []
+    clean_bug = bug_id.replace("#", "").strip()
+    if not clean_bug:
+        return matches
+
+    if _TESTPLAN_CACHE is None:
+        _TESTPLAN_CACHE = []
+        possible_paths = [
+            "Copy of The Fertile Crescent - 2025(Test plan).csv",
+            "../Copy of The Fertile Crescent - 2025(Test plan).csv"
+        ]
+        csv_path = None
+        for p in possible_paths:
+            if os.path.exists(p):
+                csv_path = p
+                break
+        if not csv_path:
+            dir_name = os.path.dirname(os.path.abspath(__file__))
+            parent_dir = os.path.dirname(dir_name)
+            p = os.path.join(parent_dir, "Copy of The Fertile Crescent - 2025(Test plan).csv")
+            if os.path.exists(p):
+                csv_path = p
+        
+        if csv_path:
+            try:
+                print(f"[TestPlan] Reading test plan CSV and caching: {csv_path}")
+                with open(csv_path, encoding='utf-8-sig', errors='ignore') as f:
+                    reader = csv.DictReader(f)
+                    headers = {h.strip(): h for h in reader.fieldnames} if reader.fieldnames else {}
+                    module_col = headers.get("Module")
+                    desc_col = headers.get("Test Case Description")
+                    steps_col = headers.get("Verification Steps")
+                    expected_col = headers.get("Expected Result")
+                    status_col = headers.get("Status")
+                    bug_col = headers.get("Bug ID")
+                    comments_col = headers.get("Comments")
+
+                    if not bug_col:
+                        f.seek(0)
+                        lines = list(csv.reader(f))
+                        header_idx = -1
+                        for idx, line in enumerate(lines[:10]):
+                            if any(x == "Module" for x in line if x):
+                                header_idx = idx
+                                break
+                        if header_idx != -1:
+                            data_rows = lines[header_idx+1:]
+                            for r in data_rows:
+                                if len(r) > 5:
+                                    _TESTPLAN_CACHE.append({
+                                        "module": r[0] if len(r) > 0 else "",
+                                        "description": r[1] if len(r) > 1 else "",
+                                        "verification_steps": r[2] if len(r) > 2 else "",
+                                        "expected_result": r[3] if len(r) > 3 else "",
+                                        "status": r[4] if len(r) > 4 else "",
+                                        "bug_id": r[5].strip() if len(r) > 5 else "",
+                                        "comments": r[6] if len(r) > 6 else ""
+                                    })
+                    else:
+                        for row in reader:
+                            _TESTPLAN_CACHE.append({
+                                "module": row.get(module_col, ""),
+                                "description": row.get(desc_col, ""),
+                                "verification_steps": row.get(steps_col, ""),
+                                "expected_result": row.get(expected_col, ""),
+                                "status": row.get(status_col, ""),
+                                "bug_id": str(row.get(bug_col, "")).strip(),
+                                "comments": row.get(comments_col, "")
+                            })
+            except Exception as e:
+                print(f"[TestPlan] Error caching: {e}")
+
+    print(f"[TestPlan] Searching cache for bug {bug_id}")
+    for row in _TESTPLAN_CACHE:
+        val_bug = row.get("bug_id", "")
+        clean_val_bug = val_bug.replace("#", "").strip()
+        if clean_val_bug == clean_bug or bug_id in val_bug:
+            matches.append(row)
+            
+    return matches
+
+    # The CSV is located in the workspace root
+    possible_paths = [
+        "Copy of The Fertile Crescent - 2025(Test plan).csv",
+        "../Copy of The Fertile Crescent - 2025(Test plan).csv"
+    ]
+    csv_path = None
+    for p in possible_paths:
+        if os.path.exists(p):
+            csv_path = p
+            break
+
+    if not csv_path:
+        # Fallback to absolute search path if script runs from dashboards/
+        dir_name = os.path.dirname(os.path.abspath(__file__))
+        parent_dir = os.path.dirname(dir_name)
+        p = os.path.join(parent_dir, "Copy of The Fertile Crescent - 2025(Test plan).csv")
+        if os.path.exists(p):
+            csv_path = p
+
+    if not csv_path:
+        print(f"[TestPlan] Warning: Test plan CSV file not found.")
+        return matches
+
+    try:
+        print(f"[TestPlan] Reading test plan CSV: {csv_path} searching for bug '{bug_id}' / '{clean_bug}'")
+        with open(csv_path, encoding='utf-8-sig', errors='ignore') as f:
+            reader = csv.DictReader(f)
+            # Adjust column names dynamically if standard headers have extra spaces
+            headers = {h.strip(): h for h in reader.fieldnames} if reader.fieldnames else {}
+            
+            module_col = headers.get("Module")
+            desc_col = headers.get("Test Case Description")
+            steps_col = headers.get("Verification Steps")
+            expected_col = headers.get("Expected Result")
+            status_col = headers.get("Status")
+            bug_col = headers.get("Bug ID")
+            comments_col = headers.get("Comments")
+
+            # Fallback column order mapping if header row starts on line 3 or looks off
+            if not bug_col:
+                # If headers couldn't be parsed correctly (e.g., lines 1-2 header summary), 
+                # we can do positional/row searching
+                f.seek(0)
+                lines = list(csv.reader(f))
+                # Skip first few meta lines to find actual header starting with 'Module'
+                header_idx = -1
+                for idx, line in enumerate(lines[:10]):
+                    if any(x == "Module" for x in line if x):
+                        header_idx = idx
+                        break
+                if header_idx != -1:
+                    header_row = lines[header_idx]
+                    data_rows = lines[header_idx+1:]
+                    for r in data_rows:
+                        if len(r) > 5:
+                            # Map columns by index:
+                            # 0: Module, 1: Test Case, 2: Verification Steps, 3: Expected Result, 4: Status, 5: Bug ID, 6: Comments
+                            val_bug = r[5].strip() if len(r) > 5 else ""
+                            clean_val_bug = val_bug.replace("#", "").strip()
+                            if clean_val_bug == clean_bug or bug_id in val_bug:
+                                matches.append({
+                                    "module": r[0] if len(r) > 0 else "",
+                                    "description": r[1] if len(r) > 1 else "",
+                                    "verification_steps": r[2] if len(r) > 2 else "",
+                                    "expected_result": r[3] if len(r) > 3 else "",
+                                    "status": r[4] if len(r) > 4 else "",
+                                    "bug_id": val_bug,
+                                    "comments": r[6] if len(r) > 6 else ""
+                                })
+                return matches
+
+            for row in reader:
+                val_bug = str(row.get(bug_col, "")).strip()
+                clean_val_bug = val_bug.replace("#", "").strip()
+                if clean_val_bug == clean_bug or bug_id in val_bug:
+                    matches.append({
+                        "module": row.get(module_col, ""),
+                        "description": row.get(desc_col, ""),
+                        "verification_steps": row.get(steps_col, ""),
+                        "expected_result": row.get(expected_col, ""),
+                        "status": row.get(status_col, ""),
+                        "bug_id": val_bug,
+                        "comments": row.get(comments_col, "")
+                    })
+    except Exception as e:
+        print(f"[TestPlan] Error reading test plan CSV: {e}")
+
+    print(f"[TestPlan] Found {len(matches)} test cases for bug {bug_id}")
+    return matches
+
 
 def get_bug_details(issue_no: str, project_id: str | None = None) -> Dict[str, Any]:
     """
@@ -86,6 +263,8 @@ def get_bug_details(issue_no: str, project_id: str | None = None) -> Dict[str, A
         # Extract dynamic fields from primary record
         df = primary_record.get("dynamic_fields") or {}
 
+        test_cases = load_testplan_for_bug(clean_issue)
+
         return {
             "found": True,
             "issue_no": clean_issue,
@@ -106,8 +285,10 @@ def get_bug_details(issue_no: str, project_id: str | None = None) -> Dict[str, A
                 "build_version": df.get("build_version", "N/A"),
                 "platform": df.get("platform", "N/A"),
                 "dynamic_fields": df,
+                "test_cases": test_cases,
             },
-            "records": rows
+            "records": rows,
+            "test_cases": test_cases
         }
 
 
@@ -153,15 +334,22 @@ class ActionableRecommendation(BaseModel):
     rationale: str
 
 
+class RiskRating(BaseModel):
+    score: float
+    level: str
+    rating_deduction: float = 0.0
+
+class ConfidenceScore(BaseModel):
+    score: float
+    level: str
+
 class SelectedEntityInvestigation(BaseModel):
-    entity_name: str
-    entity_type: str  # bug, game, severity, status, issue_type, tester
-    summary: str
-    total_bugs_in_scope: int
-    unresolved_count: int
-    reproduction_rate_info: Optional[str] = None
-    affected_projects: List[str] = Field(default_factory=list)
-    key_observations: List[str] = Field(default_factory=list)
+    risk_rating: Optional[RiskRating] = None
+    confidence: Optional[ConfidenceScore] = None
+    root_cause: str
+    why_this_rating: str
+    future_impact: str
+    recommendation: str
 
 
 class DashboardInsightsResponse(BaseModel):
@@ -338,15 +526,30 @@ def _build_insight_prompt(
         "4. NO TECHNICAL JARGON. Explain findings in plain, understandable language (e.g., 'P2 issues account for 34% of the backlog' instead of 'high cardinality skew').\n"
         "5. DO NOT INVENT TIME TRENDS if has_temporal_data is false.\n"
         "6. PROGRESSIVE DETAIL: Level 1 (Overview) must describe game-by-game health. Level 2 (Drilldown/Filter) must become deeply specific to the selected game, severity, status, or bug.\n"
-        "7. Respond strictly in valid JSON matching the specified schema."
+        "7. NATURAL EXPLANATION: For the executive_summary, if a specific filter (like a bug) is selected, provide a very natural explanation of the filter applied, the potential game rating if fixed, and your confidence score. Make it highly understandable.\n"
+        "8. Respond strictly in valid JSON matching the specified schema."
     )
 
     context_str = json.dumps(context, indent=2, default=str) if context else "None (General Overview)"
     signals_str = json.dumps(pre_signals, indent=2, default=str)
+    
+    # Hide macro statistics if doing a targeted bug investigation to prevent LLM hallucination
+    if context and context.get("type") == "issue_no":
+        signals_str = "HIDDEN FOR BUG DRILLDOWN. DO NOT generate macro game-wide trends. Base ALL analysis EXCLUSIVELY on the DRILLDOWN BUG RECORD DETAILS below!"
+
     plan_title = dashboard_plan.get("dashboard_title", "Adaptive Dashboard Plan")
     viz_list = dashboard_plan.get("visualizations", [])
     viz_summary_str = json.dumps([{"id": v.get("id"), "title": v.get("title"), "type": v.get("type"), "fields": v.get("fields")} for v in viz_list], indent=2)
     dd_str = json.dumps(drilldown_data, indent=2, default=str) if drilldown_data else "None"
+
+    investigation_block = '"investigation": null,'
+    if context and context.get("type") == "issue_no":
+        investigation_block = """  "investigation": {
+    "root_cause": "Detailed explanation of why that bug has happened based on title, description/summary, repro steps, and test plan module metadata.",
+    "why_this_rating": "Detailed explanation of why this bug is assigned the calculated Risk Rating and Confidence score based on severity, occurrences, and test plan matches.",
+    "future_impact": "Analysis of what will happen next if this bug is left unresolved (e.g. cascading failures, user drop-off).",
+    "recommendation": "Step-by-step technical guide to reproducing and fixing the issue based on the provided data."
+  },"""
 
     user_prompt = f"""Perform data insight analysis for Bugsy Dashboard: '{plan_title}'.
 
@@ -364,7 +567,7 @@ DASHBOARD VISUALIZATIONS PLAN:
 
 REQUIRED JSON RESPONSE STRUCTURE:
 {{
-  "executive_summary": "Plain-language executive overview describing overall bug health and key numbers.",
+  "executive_summary": "Plain-language executive overview describing overall bug health and key numbers. If a specific filter (like a bug) is active, write a natural explanation of the filter, the bug's impact, your confidence score, and the predicted rating.",
   "key_findings": [
     {{
       "title": "Clear Finding Title",
@@ -408,24 +611,8 @@ REQUIRED JSON RESPONSE STRUCTURE:
       "rationale": "Data-backed reasoning"
     }}
   ],
-  "investigation": null,
+{investigation_block}
   "data_scope": "All Projects"
-}}
-
-Note: If context represents a specific bug investigation, you MUST populate the 'investigation' field with:
-{{
-  "entity_name": "BUG-1024",
-  "entity_type": "bug",
-  "summary": "Detailed explanation of: 1) Why that bug has happened (root cause analysis based on title, description/summary, and repro steps); 2) What is its severity and how it impacts the project; 3) What measures can be taken to avoid or prevent this bug in the future.",
-  "total_bugs_in_scope": 4,
-  "unresolved_count": 3,
-  "reproduction_rate_info": "5/5 (Consistent)",
-  "affected_projects": ["The Fertile Crescent", "CyberStrike 2099"],
-  "key_observations": [
-    "Root Cause: [Reasoning why it happened]",
-    "Severity: [Analysis of why it has this severity]",
-    "Measures to avoid: [Actionable prevention steps]"
-  ]
 }}
 """
     return system_prompt, user_prompt
@@ -435,6 +622,73 @@ Note: If context represents a specific bug investigation, you MUST populate the 
 #  MAIN INSIGHT AGENT FUNCTION
 # ══════════════════════════════════════════════════════════════════════════
 
+
+def calculate_deterministic_scores(drilldown_data: dict) -> tuple[dict, dict]:
+    risk = {"score": 5.0, "level": "Medium"}
+    conf = {"score": 50.0, "level": "Medium"}
+    
+    if not drilldown_data or not drilldown_data.get("found"):
+        return risk, conf
+        
+    bug = drilldown_data.get("primary_bug", {})
+    sev = bug.get("severity", "").upper()
+    status = bug.get("status", "").lower()
+    occurrences = drilldown_data.get("occurrences_count", 1)
+    test_cases = bug.get("test_cases", [])
+    
+    r_score = 3.0
+    if sev in ["P1", "BLOCKER", "CRITICAL"]:
+        r_score += 5.0
+    elif sev in ["P2", "MAJOR", "HIGH"]:
+        r_score += 3.0
+    elif sev in ["P3", "MINOR"]:
+        r_score += 1.0
+        
+    if status in ["open", "in_progress", "reopened"]:
+        r_score += 1.0
+        
+    if occurrences > 1:
+        r_score += min(1.0, occurrences * 0.1)
+        
+    r_score = min(10.0, round(r_score, 1))
+    
+    if r_score >= 8.0:
+        r_level = "High"
+    elif r_score >= 5.0:
+        r_level = "Medium"
+    else:
+        r_level = "Low"
+        
+    deduction = 0.0
+    if sev in ["P1", "BLOCKER", "CRITICAL"]:
+        deduction = 2.0
+    elif sev in ["P2", "MAJOR", "HIGH"]:
+        deduction = 0.5
+    elif sev in ["P3", "MINOR"]:
+        deduction = 0.1
+        
+    risk = {"score": r_score, "level": r_level, "rating_deduction": deduction}
+    
+    c_score = 40.0
+    has_desc = bool(bug.get("summary") or bug.get("dynamic_fields", {}).get("description"))
+    has_steps = bool(bug.get("dynamic_fields", {}).get("steps"))
+    
+    if has_desc: c_score += 20
+    if has_steps: c_score += 20
+    if len(test_cases) > 0: c_score += 20
+    
+    c_score = min(100.0, round(c_score, 0))
+    if c_score >= 80:
+        c_level = "High"
+    elif c_score >= 60:
+        c_level = "Medium"
+    else:
+        c_level = "Low"
+        
+    conf = {"score": c_score, "level": c_level}
+    
+    return risk, conf
+
 def analyze_data(
     profile: dict,
     dashboard_plan: dict,
@@ -442,16 +696,10 @@ def analyze_data(
     context: Optional[dict] = None,
     drilldown_data: Optional[dict] = None
 ) -> Dict[str, Any]:
-    """
-    Step 2.4 Agent-Driven Data Insights main entry point.
-
-    Inspects Data Profile + Dashboard Plan + actual metric numbers + context,
-    performs deterministic pre-analysis, calls Qwen to generate structured insights,
-    and enforces identifier & schema validation rules.
-    """
+    t_start = time.time()
+    
+    t_pre_start = time.time()
     total_recs = profile.get("record_count", 0)
-
-    # 1. Empty Dataset Handling — Return immediately without calling Ollama
     if total_recs == 0:
         return {
             "executive_summary": "No bug report data is available matching the current selection.",
@@ -464,37 +712,60 @@ def analyze_data(
             "data_scope": "No Data"
         }
 
-    # 2. Check In-Memory Cache
     cache_key = _compute_insights_cache_key(profile, dashboard_plan, metric_data, context, drilldown_data)
     if cache_key in _INSIGHTS_CACHE:
         return _INSIGHTS_CACHE[cache_key]
 
-    # 3. Check Ollama Server Status
     is_ready, status_msg = check_ollama_status()
     if not is_ready:
         raise OllamaUnavailableError(f"Dashboard Insight AI is currently unavailable. {status_msg}")
 
-    # 4. Perform Deterministic Pre-Analysis Signals
     pre_signals = _pre_analyze_data(profile, metric_data, context, drilldown_data)
+    t_stats = time.time() - t_pre_start
+    
+    t_scores_start = time.time()
+    risk, conf = calculate_deterministic_scores(drilldown_data)
+    
+    if drilldown_data and drilldown_data.get("found"):
+        pre_signals["calculated_risk_rating"] = risk
+        pre_signals["calculated_confidence"] = conf
+    t_scores = time.time() - t_scores_start
 
-    # 5. Build Prompt & Call LLM
+    t_prompt_start = time.time()
     system_prompt, user_prompt = _build_insight_prompt(
         profile, dashboard_plan, pre_signals, metric_data, context, drilldown_data
     )
+    t_prompt = time.time() - t_prompt_start
 
     try:
+        t_llm_start = time.time()
         raw_json = call_llm_json(prompt=user_prompt, system_prompt=system_prompt, temperature=0.1)
+        t_llm = time.time() - t_llm_start
     except Exception as err:
         raise OllamaModelError(f"Failed to generate data insights via Ollama: {str(err)}")
 
-    # 6. Sanitize, Validate, and Enforce Rules
+    t_parse_start = time.time()
     try:
+        if raw_json.get("investigation") and drilldown_data and drilldown_data.get("found"):
+            raw_json["investigation"]["risk_rating"] = risk
+            raw_json["investigation"]["confidence"] = conf
+            
         validated_insights = _sanitize_and_validate_insights(raw_json, profile)
     except ValidationError as err:
         raise OllamaModelError(f"Ollama insight output failed Pydantic schema validation: {str(err)}")
     except Exception as err:
         raise OllamaModelError(f"Error processing model data insights: {str(err)}")
+    t_parse = time.time() - t_parse_start
+        
+    t_total = time.time() - t_start
+    
+    print(f"\n[Performance] Test plan & Bug lookup included in route logic")
+    print(f"[Performance] Statistics pre-calc: {t_stats*1000:.1f} ms")
+    print(f"[Performance] Risk/Conf scores: {t_scores*1000:.1f} ms")
+    print(f"[Performance] Prompt construction: {t_prompt*1000:.1f} ms")
+    print(f"[Performance] LLM Request: {t_llm:.2f} sec")
+    print(f"[Performance] Response parsing: {t_parse*1000:.1f} ms")
+    print(f"[Performance] Total analysis time: {t_total:.2f} sec\n")
 
-    # 7. Cache and Return
     _INSIGHTS_CACHE[cache_key] = validated_insights
     return validated_insights

@@ -202,14 +202,12 @@ export interface ActionableRecommendation {
 }
 
 export interface SelectedEntityInvestigation {
-  entity_name: string;
-  entity_type: string;
-  summary: string;
-  total_bugs_in_scope: number;
-  unresolved_count: number;
-  reproduction_rate_info?: string | null;
-  affected_projects: string[];
-  key_observations: string[];
+  risk_rating?: { score: number; level: string; rating_deduction?: number } | null;
+  confidence?: { score: number; level: string } | null;
+  root_cause: string;
+  why_this_rating: string;
+  future_impact: string;
+  recommendation: string;
 }
 
 export interface DashboardInsightsResponse {

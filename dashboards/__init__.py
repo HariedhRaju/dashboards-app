@@ -579,7 +579,7 @@ async def bugs_quick_stats(project_id: str | None = None) -> dict[str, Any]:
                 SELECT 
                     COUNT(*)::int AS total,
                     COUNT(*) FILTER (WHERE status <> 'closed')::int AS backlog,
-                    COUNT(*) FILTER (WHERE severity IN ('P1','Blocker','Critical') AND status <> 'closed')::int AS critical_open,
+                    COUNT(*) FILTER (WHERE severity::text IN ('P1','Blocker','Critical') AND status <> 'closed')::int AS critical_open,
                     COUNT(DISTINCT reported_by)::int AS active_reporters
                 FROM bug_reports
                 WHERE 1=1 {proj_cond}
@@ -843,12 +843,12 @@ _DIMENSION_QUERIES: dict[str, str] = {
     "bug_issues":
         "SELECT value, label FROM ("
         "  SELECT DISTINCT"
-        "    COALESCE(b.dynamic_fields->>'source_record_id', b.dynamic_fields->>'issue_no', b.id::text) AS value,"
-        "    COALESCE(b.dynamic_fields->>'source_record_id', b.dynamic_fields->>'issue_no', b.id::text) AS label"
+        "    COALESCE(b.dynamic_fields->>'clean_issue_no', regexp_replace(COALESCE(b.dynamic_fields->>'source_record_id', b.dynamic_fields->>'issue_no', ''), '[^0-9]', '', 'g')) AS value,"
+        "    COALESCE(b.dynamic_fields->>'clean_issue_no', regexp_replace(COALESCE(b.dynamic_fields->>'source_record_id', b.dynamic_fields->>'issue_no', ''), '[^0-9]', '', 'g')) AS label"
         "  FROM bug_reports b"
         "  WHERE b.dynamic_fields->>'source_record_id' IS NOT NULL OR b.dynamic_fields->>'issue_no' IS NOT NULL"
-        ") sub"
-        " ORDER BY (NULLIF(regexp_replace(value, '[^0-9]', '', 'g'), ''))::int NULLS LAST, value",
+        ") sub WHERE value != ''"
+        " ORDER BY value::int",
     "bug_reporters":
         "SELECT id::text AS value, name AS label FROM bug_users ORDER BY name",
     "bug_severities":

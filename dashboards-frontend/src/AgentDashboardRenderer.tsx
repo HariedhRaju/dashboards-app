@@ -221,71 +221,35 @@ function ActivePills() {
   );
 }
 
-// ---------------------------------------------------------------------------
-// Quick Stats Banner — instant, no LLM
-// ---------------------------------------------------------------------------
-
-function QuickStatsBanner({ projectId }: { projectId?: string | null }) {
-  const { data: s, isPending } = useQuery<QuickStats>({
-    queryKey: ['qs', projectId],
-    queryFn: () => getQuickStats(projectId),
-    staleTime: 30_000,
-  });
-
-  if (isPending || !s) {
-    return (
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {[0, 1, 2, 3].map(i => (
-          <div key={i} className="h-24 bg-neutral-900/50 rounded-2xl animate-pulse" />
-        ))}
-      </div>
-    );
-  }
-
-  const cards = [
-    {
-      emoji: '🐞', label: 'Total Bugs', value: s.total,
-      sub: `across ${s.game_count} game${s.game_count !== 1 ? 's' : ''}`,
-      accent: 'border-blue-900/50 bg-blue-950/20', vColor: 'text-blue-300',
-    },
-    {
-      emoji: '📋', label: 'Open / Backlog', value: s.backlog,
-      sub: s.total > 0 ? `${Math.round(s.backlog / s.total * 100)}% unresolved` : '',
-      accent: 'border-amber-900/50 bg-amber-950/20', vColor: 'text-amber-300',
-    },
-    {
-      emoji: '🚨', label: 'Critical Open', value: s.critical_open,
-      sub: 'P1 / Blocker / Critical',
-      accent: s.critical_open > 0 ? 'border-rose-900/50 bg-rose-950/20' : 'border-neutral-800 bg-neutral-900/40',
-      vColor: s.critical_open > 0 ? 'text-rose-300' : 'text-neutral-400',
-    },
-    {
-      emoji: '✅', label: 'Fix Rate', value: `${s.fix_rate}%`,
-      sub: 'bugs resolved',
-      accent: 'border-emerald-900/50 bg-emerald-950/20', vColor: 'text-emerald-300',
-    },
-  ];
-
+function GeneralAIDashboardAnalysis({ insightsData }: { insightsData: DashboardInsightsResponse }) {
+  if (!insightsData) return null;
   return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {cards.map(c => (
-          <div key={c.label} className={`border rounded-2xl p-4 ${c.accent}`}>
-            <div className="flex items-center gap-1.5 text-xs text-neutral-400 mb-2">
-              <span>{c.emoji}</span>
-              <span>{c.label}</span>
+    <div className="bg-gradient-to-br from-indigo-950/30 via-neutral-900 to-neutral-900 border border-indigo-800/40 rounded-2xl p-6 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="flex items-center gap-3 border-b border-indigo-800/40 pb-4">
+        <span className="text-2xl">🧠</span>
+        <h3 className="text-xl font-bold text-indigo-300">AI DASHBOARD INSIGHTS</h3>
+      </div>
+      
+      <div className="bg-neutral-900/60 border border-indigo-900/30 rounded-xl p-5">
+        <div className="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-2">Executive Summary</div>
+        <p className="text-sm text-neutral-200 leading-relaxed">{insightsData.executive_summary}</p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {insightsData.key_findings?.map((finding, idx) => (
+          <div key={idx} className="bg-neutral-900/60 border border-indigo-900/30 rounded-xl p-4">
+            <div className="text-sm font-bold text-white mb-2 flex items-center gap-2">
+              <span className="text-indigo-400">💡</span> {finding.title}
             </div>
-            <div className={`text-3xl font-bold tracking-tight ${c.vColor}`}>{c.value}</div>
-            {c.sub && <div className="text-[11px] text-neutral-500 mt-1">{c.sub}</div>}
+            <p className="text-xs text-neutral-300 mb-3">{finding.explanation}</p>
+            {finding.recommended_action && (
+              <div className="text-xs text-indigo-200 bg-indigo-900/20 p-2 rounded border border-indigo-800/30">
+                <span className="font-bold">Recommendation:</span> {finding.recommended_action}
+              </div>
+            )}
           </div>
         ))}
       </div>
-      {s.executive_summary && (
-        <div className="bg-neutral-900/60 border border-neutral-800/70 rounded-xl px-5 py-3 text-sm text-neutral-300 leading-relaxed">
-          <span className="text-indigo-400 font-semibold mr-2">📊</span>
-          {s.executive_summary}
-        </div>
-      )}
     </div>
   );
 }
@@ -294,7 +258,21 @@ function QuickStatsBanner({ projectId }: { projectId?: string | null }) {
 // Bug Detail Panel — fast DB fetch, AI narrative on demand
 // ---------------------------------------------------------------------------
 
-function BugDetailPanel({ issueNo, projectId }: { issueNo: string; projectId?: string | null }) {
+function BugDetailPanel({
+  issueNo, 
+  projectId,
+  onAnalyze,
+  loadingAnalysis,
+  isAnalyzedView,
+  insightsData
+}: {
+  issueNo: string; 
+  projectId?: string | null;
+  onAnalyze: () => void;
+  loadingAnalysis: boolean;
+  isAnalyzedView: boolean;
+  insightsData: DashboardInsightsResponse | null;
+}) {
   const { data: det, isPending, error } = useQuery<BugDetails>({
     queryKey: ['bug-det', issueNo, projectId],
     queryFn: async () => {
@@ -369,8 +347,84 @@ function BugDetailPanel({ issueNo, projectId }: { issueNo: string; projectId?: s
               {bug.reporter_name && <span>👤 {bug.reporter_name}</span>}
             </div>
           </div>
+          <div className="shrink-0 flex items-center justify-end">
+            <button
+              onClick={onAnalyze}
+              disabled={loadingAnalysis}
+              className="flex items-center gap-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-400 hover:to-purple-500 text-white font-bold py-2.5 px-6 rounded-xl shadow-lg shadow-indigo-900/50 transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
+            >
+              {loadingAnalysis ? (
+                <>
+                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                  Analyzing...
+                </>
+              ) : (
+                <>
+                  <span className="text-lg">✨</span>
+                  ANALYSE
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* AI Analysis Block */}
+      {isAnalyzedView && insightsData && (
+        insightsData.investigation ? (
+          <div className="bg-gradient-to-br from-indigo-950/40 via-purple-900/20 to-neutral-900 border border-indigo-800/50 rounded-2xl p-6 space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="flex items-center gap-3 border-b border-indigo-800/40 pb-4">
+              <span className="text-2xl">🧠</span>
+              <h3 className="text-lg font-bold text-indigo-300">AI ANALYSIS</h3>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-neutral-900/60 border border-indigo-900/30 rounded-xl p-4">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <div className="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-2">Risk Rating</div>
+                    <div className="text-2xl font-bold text-white">{insightsData.investigation.risk_rating?.level || 'N/A'}</div>
+                  </div>
+                  {insightsData.investigation.risk_rating?.rating_deduction ? (
+                    <div className="text-right">
+                      <div className="text-[10px] font-bold text-rose-400 uppercase tracking-wider mb-1">Game Rating Impact</div>
+                      <div className="text-lg font-bold text-rose-500">-{insightsData.investigation.risk_rating.rating_deduction.toFixed(1)} / 5.0</div>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+              <div className="bg-neutral-900/60 border border-indigo-900/30 rounded-xl p-4">
+                <div className="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-2">Confidence Score</div>
+                <div className="text-2xl font-bold text-white">{insightsData.investigation.confidence ? `${insightsData.investigation.confidence.score.toFixed(0)}%` : 'N/A'}</div>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="bg-neutral-900/60 border border-indigo-900/30 rounded-xl p-4">
+                <div className="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-2">Root Cause</div>
+                <p className="text-sm text-neutral-200 leading-relaxed">{insightsData.investigation.root_cause || 'Not identified'}</p>
+              </div>
+              
+              <div className="bg-neutral-900/60 border border-indigo-900/30 rounded-xl p-4">
+                <div className="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-2">Why This Rating</div>
+                <p className="text-sm text-neutral-200 leading-relaxed">{insightsData.investigation.why_this_rating || 'Not identified'}</p>
+              </div>
+
+              <div className="bg-neutral-900/60 border border-indigo-900/30 rounded-xl p-4">
+                <div className="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-2">Future Impact</div>
+                <p className="text-sm text-neutral-200 leading-relaxed">{insightsData.investigation.future_impact || 'Not identified'}</p>
+              </div>
+
+              <div className="bg-neutral-900/60 border border-indigo-900/30 rounded-xl p-4">
+                <div className="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-2">Recommendation</div>
+                <p className="text-sm text-neutral-200 leading-relaxed">{insightsData.investigation.recommendation || 'Not identified'}</p>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <GeneralAIDashboardAnalysis insightsData={insightsData} />
+        )
+      )}
 
       {/* Cross-game banner */}
       {multiGame && (
@@ -749,6 +803,21 @@ export function AgentDashboardRenderer({ projectId }: AgentDashboardRendererProp
     issue_no: issueNo,
   };
 
+  const hasContextualFilters = !!(projFilter || filters.severity || filters.status);
+  const isBugOnly = !!issueNo && !hasContextualFilters;
+  const isBugWithContext = !!issueNo && hasContextualFilters;
+
+  const { data: validationDet } = useQuery<BugDetails>({
+    queryKey: ['bug-det', issueNo, projFilter],
+    queryFn: async () => {
+      const raw = await fetchBugDetails(issueNo!, projFilter);
+      return raw as BugDetails;
+    },
+    enabled: !!issueNo,
+    staleTime: 120_000,
+  });
+
+  // The aggressive mismatch clearing useEffect has been removed so clicking a bug in the table never silently fails.
   // Reset analysis view and data when filters change
   useEffect(() => {
     setIsAnalyzedView(false);
@@ -756,6 +825,7 @@ export function AgentDashboardRenderer({ projectId }: AgentDashboardRendererProp
     setInsightsData(null);
     setAnalysisError(null);
   }, [issueNo, projFilter, filters.severity, filters.status]);
+
 
   const handleAnalyzeClick = async () => {
     setLoadingAnalysis(true);
@@ -767,19 +837,9 @@ export function AgentDashboardRenderer({ projectId }: AgentDashboardRendererProp
         bugDetailsData = await fetchBugDetails(issueNo, projFilter);
       }
 
-      // Step 1: Fetch dynamic dashboard visualizations plan from AI
-      const plan = await fetchDashboardAnalysis({
-        project_id: projFilter,
-        filters: activeFilters,
-        context: issueNo ? { field: 'issue_no', value: issueNo } : undefined,
-      });
-      setAnalysisData(plan);
-
-      // Step 2: Fetch grounding insights and reasoning from AI
       const insights = await fetchDashboardInsights({
         project_id: projFilter,
         filters: activeFilters,
-        dashboard_plan: plan,
         drilldown_data: bugDetailsData,
         context: issueNo ? { field: 'issue_no', value: issueNo, type: 'issue_no' } : undefined,
       });
@@ -810,82 +870,46 @@ export function AgentDashboardRenderer({ projectId }: AgentDashboardRendererProp
   }
 
   return (
-    <div className="max-w-[1400px] mx-auto p-6 space-y-6">
-
-      {/* Page header */}
-      <div className="bg-neutral-900/70 border border-neutral-800 rounded-2xl px-6 py-5 backdrop-blur-sm">
-        <div className="flex items-center gap-2 mb-2">
-          <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-400 bg-indigo-950/60 border border-indigo-800/50 px-2.5 py-1 rounded-full">
-            🤖 Agent Dashboard
-          </span>
-        </div>
-        <h1 className="text-2xl font-bold text-neutral-100">
-          {issueNo
-            ? `Bug #${issueNo} \u2014 Detailed Analysis`
-            : 'Bug Bot \u2014 Quality Command Center'}
-        </h1>
-        <p className="text-sm text-neutral-400 mt-1">
-          {issueNo
-            ? 'Full bug record fetched from the database. Click ✨ Analyze to trigger LLM reasoning and custom dashboard.'
-            : projFilter
-            ? 'Showing all metrics scoped to the selected game. Select a Bug # to drill into a specific record.'
-            : 'Full overview across all games. Filter by game, bug #, severity, or status to drill down.'}
-        </p>
-      </div>
+    <div className="max-w-[1400px] mx-auto space-y-6">
 
       {/* Filter bar */}
-      <div className="bg-neutral-900/60 border border-neutral-800 rounded-2xl p-5 space-y-3">
-        <div className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">Filter by</div>
-        <div className="flex flex-wrap gap-3">
-          <FilterSelect dimension="bug_projects"   param="project_id" placeholder="🎮 All Games"      />
-          <FilterSelect dimension="bug_issues"     param="issue_no"   placeholder="🐛 All Bugs #"     />
-          <FilterSelect dimension="bug_severities" param="severity"   placeholder="⚠ All Severities"       />
-          <FilterSelect dimension="bug_statuses"   param="status"     placeholder="📋 All Statuses"   />
+      <div className="bg-neutral-900/60 border border-neutral-800 rounded-2xl p-5 space-y-4">
+        <div>
+          <div className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest mb-3">Contextual Filters</div>
+          <div className="flex flex-wrap gap-3">
+            <FilterSelect dimension="bug_projects"   param="project_id" placeholder="🎮 All Games"      />
+            <FilterSelect dimension="bug_severities" param="severity"   placeholder="⚠ All Severities"       />
+            <FilterSelect dimension="bug_statuses"   param="status"     placeholder="📋 All Statuses"   />
+          </div>
+        </div>
+
+        <div className="border-t border-neutral-800/60 pt-4">
+          <div className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest mb-3">Targeted Investigation</div>
+          <div className="flex items-center gap-4 flex-wrap">
+            <div className="w-64">
+              <FilterSelect dimension="bug_issues" param="issue_no" placeholder="🐛 Select Bug to Analyze..." />
+            </div>
+            
+            <button
+              onClick={handleAnalyzeClick}
+              disabled={loadingAnalysis}
+              className="flex items-center gap-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-400 hover:to-purple-500 text-white font-bold py-2 px-5 rounded-xl shadow-lg shadow-indigo-900/50 transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
+            >
+              {loadingAnalysis ? (
+                <>
+                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                  Analyzing...
+                </>
+              ) : (
+                <>
+                  <span className="text-sm">✨</span>
+                  ANALYSE
+                </>
+              )}
+            </button>
+          </div>
         </div>
         <ActivePills />
-      </div>
-
-      {/* Interactive taskbar with Analyze button */}
-      <div className="bg-gradient-to-r from-neutral-900/90 to-neutral-950/90 border border-neutral-800 rounded-2xl px-5 py-4 flex items-center justify-between flex-wrap gap-4 shadow-lg backdrop-blur-sm">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-xl bg-indigo-500/10 border border-indigo-500/25 flex items-center justify-center text-indigo-400">
-            <Activity size={16} />
-          </div>
-          <div>
-            <div className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">Dashboard Scope</div>
-            <div className="text-sm text-neutral-200 font-medium capitalize mt-0.5">{taskbarText}</div>
-          </div>
-        </div>
-        
-        <div className="flex items-center gap-3">
-          {isAnalyzedView && (
-            <button
-              onClick={() => setIsAnalyzedView(false)}
-              className="flex items-center gap-1.5 px-4 py-2 bg-neutral-800 hover:bg-neutral-700/80 text-neutral-300 font-semibold text-xs rounded-xl border border-neutral-700 transition-all cursor-pointer"
-            >
-              <RotateCcw size={13} />
-              <span>Basic View</span>
-            </button>
-          )}
-
-          <button
-            onClick={handleAnalyzeClick}
-            disabled={loadingAnalysis}
-            className="flex items-center gap-2 px-5 py-2 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 disabled:opacity-50 text-white font-semibold text-xs rounded-xl transition-all shadow-md shadow-indigo-950/40 cursor-pointer"
-          >
-            {loadingAnalysis ? (
-              <>
-                <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                <span>Running Agent...</span>
-              </>
-            ) : (
-              <>
-                <Sparkles size={13} />
-                <span>Analyze</span>
-              </>
-            )}
-          </button>
-        </div>
       </div>
 
       {/* Error state */}
@@ -893,194 +917,56 @@ export function AgentDashboardRenderer({ projectId }: AgentDashboardRendererProp
         <div className="bg-rose-950/30 border border-rose-900/50 rounded-2xl p-4 flex items-start gap-3">
           <AlertOctagon className="text-rose-400 shrink-0 mt-0.5" size={16} />
           <div className="text-xs text-rose-300 leading-relaxed">
-            <span className="font-bold">AI Analysis Offline:</span> {analysisError}. You can still use the Basic View below.
+            <span className="font-bold">AI Analysis Offline:</span> {analysisError}.
           </div>
         </div>
       )}
 
       {/* Main Content Area */}
-      {!isAnalyzedView ? (
-        <div className="space-y-6">
-          <QuickStatsBanner projectId={projFilter} />
-          {issueNo ? (
-            <BugDetailPanel issueNo={issueNo} projectId={projFilter} />
-          ) : (
+      <div className="space-y-6">
+        {isBugOnly ? (
+          <div className="space-y-6">
+            {/* General AI Dashboard Analysis (fallback) */}
+            {isAnalyzedView && insightsData && !insightsData.investigation && (
+              <GeneralAIDashboardAnalysis insightsData={insightsData} />
+            )}
+            <BugDetailPanel 
+              issueNo={issueNo} 
+              projectId={projFilter} 
+              onAnalyze={handleAnalyzeClick}
+              loadingAnalysis={loadingAnalysis}
+              isAnalyzedView={isAnalyzedView}
+              insightsData={insightsData}
+            />
+          </div>
+        ) : (
+          <>
+            {/* General AI Dashboard Analysis */}
+            {isAnalyzedView && insightsData && (
+              <GeneralAIDashboardAnalysis insightsData={insightsData} />
+            )}
+
             <OverviewPanel />
-          )}
-        </div>
-      ) : (
-        <div className="space-y-6 animate-fadeIn">
-          {/* AI Analyzed Reasoning Header */}
-          {insightsData && (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              
-              {/* Executive Summary */}
-              <div className="lg:col-span-2 bg-gradient-to-br from-indigo-950/40 via-neutral-900 to-neutral-900 border border-indigo-900/35 rounded-2xl p-5 space-y-3 shadow-md">
-                <div className="flex items-center gap-2 text-indigo-400">
-                  <Brain size={18} strokeWidth={2.5} />
-                  <h3 className="text-sm font-bold uppercase tracking-wider">AI Executive Analysis</h3>
+
+            {isBugWithContext && (
+              <div className="mt-12 border-t border-neutral-800/80 pt-10">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="h-4 w-1 bg-indigo-500 rounded-full" />
+                  <h2 className="text-sm font-black text-white uppercase tracking-widest">Selected Bug Detail</h2>
                 </div>
-                <p className="text-sm text-indigo-100/90 leading-relaxed font-normal">
-                  {insightsData.executive_summary}
-                </p>
+                <BugDetailPanel 
+                  issueNo={issueNo} 
+                  projectId={projFilter} 
+                  onAnalyze={handleAnalyzeClick}
+                  loadingAnalysis={loadingAnalysis}
+                  isAnalyzedView={isAnalyzedView}
+                  insightsData={insightsData}
+                />
               </div>
-
-              {/* Scope Card */}
-              <div className="bg-neutral-900 border border-neutral-850 rounded-2xl p-5 flex flex-col justify-between">
-                <div>
-                  <div className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-2">Scope Summary</div>
-                  <div className="text-xs text-neutral-300 space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-neutral-500">Selected Game:</span>
-                      <span className="font-semibold text-neutral-200">{projLabel || 'All Games'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-neutral-500">Selected Bug:</span>
-                      <span className="font-semibold text-neutral-200">{issueNo ? `#${issueNo}` : 'All'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-neutral-500">Filter Scope:</span>
-                      <span className="font-mono text-neutral-200">{insightsData.data_scope}</span>
-                    </div>
-                  </div>
-                </div>
-                {insightsData.recommendations?.[0] && (
-                  <div className="border-t border-neutral-800/60 pt-3 mt-3 text-[11px] text-neutral-400">
-                    <span className="text-amber-400 font-bold mr-1">💡 Key Action:</span>
-                    {insightsData.recommendations[0].action}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Bug Investigation Deep-Dive (Visible when a specific bug is analyzed) */}
-          {insightsData?.investigation && (
-            <div className="bg-gradient-to-br from-neutral-900 via-neutral-900 to-indigo-950/15 border border-neutral-800 rounded-2xl p-6 space-y-5 shadow-lg">
-              <div className="flex items-center gap-2 border-b border-neutral-800 pb-3">
-                <span className="text-xs font-bold uppercase tracking-widest text-indigo-400 bg-indigo-950/60 border border-indigo-800/40 px-3 py-1 rounded-lg">
-                  🔍 Bug Root Cause & Prevention Analysis
-                </span>
-              </div>
-
-              {/* Dynamic stats */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="bg-neutral-950/40 border border-neutral-850 rounded-xl p-3.5">
-                  <div className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">Total Repeats</div>
-                  <div className="text-xl font-bold text-neutral-200 tabular-nums mt-1">{insightsData.investigation.total_bugs_in_scope} times</div>
-                </div>
-                <div className="bg-neutral-950/40 border border-neutral-850 rounded-xl p-3.5">
-                  <div className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">Unresolved Occurrences</div>
-                  <div className="text-xl font-bold text-neutral-200 tabular-nums mt-1">{insightsData.investigation.unresolved_count} open</div>
-                </div>
-                <div className="bg-neutral-950/40 border border-neutral-850 rounded-xl p-3.5">
-                  <div className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">Reproduction Rate</div>
-                  <div className="text-xl font-bold text-indigo-400 mt-1">{insightsData.investigation.reproduction_rate_info || 'N/A'}</div>
-                </div>
-                <div className="bg-neutral-950/40 border border-neutral-850 rounded-xl p-3.5">
-                  <div className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">Affected Games</div>
-                  <div className="text-sm font-semibold text-neutral-200 mt-2 truncate">
-                    {insightsData.investigation.affected_projects?.join(', ') || 'N/A'}
-                  </div>
-                </div>
-              </div>
-
-              {/* Root Cause Details */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
-                <div className="md:col-span-2 bg-neutral-950/30 border border-neutral-850 rounded-xl p-4 space-y-2">
-                  <div className="text-xs font-bold text-neutral-450 uppercase tracking-wider">Root Cause Reasoning</div>
-                  <p className="text-xs text-neutral-300 leading-relaxed whitespace-pre-line">
-                    {insightsData.investigation.summary}
-                  </p>
-                </div>
-
-                <div className="bg-neutral-950/30 border border-neutral-850 rounded-xl p-4 space-y-3">
-                  <div className="text-xs font-bold text-neutral-450 uppercase tracking-wider">Actionable Prevention Measures</div>
-                  <ul className="space-y-2">
-                    {insightsData.investigation.key_observations?.map((obs, index) => {
-                      const isObsRoot = obs.startsWith("Root Cause:");
-                      const isObsSev = obs.startsWith("Severity:");
-                      const isObsMeas = obs.startsWith("Measures to avoid:");
-
-                      return (
-                        <li key={index} className="text-xs text-neutral-300 leading-relaxed flex items-start gap-2">
-                          {isObsRoot ? <span className="text-indigo-400 shrink-0">🔬</span> : 
-                           isObsSev ? <span className="text-rose-400 shrink-0">🚨</span> : 
-                           isObsMeas ? <span className="text-emerald-400 shrink-0">✅</span> : 
-                           <span className="text-neutral-500 shrink-0">•</span>}
-                          <span>
-                            <strong className="text-neutral-200">{obs.split(':')[0]}:</strong>
-                            {obs.split(':').slice(1).join(':')}
-                          </span>
-                        </li>
-                      );
-                    })}
-                    {(!insightsData.investigation.key_observations || insightsData.investigation.key_observations.length === 0) && (
-                      <p className="text-xs text-neutral-500">No key observations available.</p>
-                    )}
-                  </ul>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Actionable Recommendations list */}
-          {insightsData?.recommendations && insightsData.recommendations.length > 0 && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {insightsData.recommendations.map((rec, i) => (
-                <div key={i} className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 space-y-2">
-                  <div className="flex items-center gap-2">
-                    <span className="w-5 h-5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center text-[10px] font-bold">
-                      {i + 1}
-                    </span>
-                    <h4 className="text-xs font-bold text-neutral-200">{rec.title}</h4>
-                  </div>
-                  <p className="text-xs text-neutral-300 leading-relaxed pl-7">{rec.action}</p>
-                  <p className="text-[10px] text-neutral-500 italic pl-7">Rationale: {rec.rationale}</p>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Adaptive Dynamic Dashboard Visualizations */}
-          {analysisData && analysisData.visualizations && analysisData.visualizations.length > 0 && (
-            <div className="space-y-4">
-              <div className="flex flex-col gap-1 border-b border-neutral-800 pb-2">
-                <h2 className="text-lg font-bold text-neutral-100 flex items-center gap-2">
-                  <Layers size={18} className="text-indigo-400" />
-                  <span>📊 AI Adaptive Visualizations</span>
-                </h2>
-                <p className="text-xs text-neutral-400">{analysisData.dashboard_purpose}</p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {analysisData.visualizations.map((viz) => (
-                  <div key={viz.id} className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 flex flex-col justify-between hover:border-neutral-700 transition-colors">
-                    <div>
-                      <div className="flex justify-between items-start gap-2 mb-2">
-                        <h3 className="text-xs font-bold text-neutral-200 line-clamp-1">{viz.title}</h3>
-                        <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-neutral-800 text-neutral-400 border border-neutral-700/60 shrink-0">
-                          {viz.type}
-                        </span>
-                      </div>
-                      <p className="text-[10px] text-neutral-500 leading-snug mb-3 line-clamp-2">{viz.insight_goal}</p>
-                    </div>
-
-                    <div className="bg-neutral-950/40 border border-neutral-900 rounded-lg p-2.5">
-                      <DynamicChart
-                        viz={viz}
-                        filters={activeFilters}
-                        projFilter={projFilter}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }
