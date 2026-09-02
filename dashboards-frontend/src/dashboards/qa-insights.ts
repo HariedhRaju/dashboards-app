@@ -101,6 +101,29 @@ const qaInsightsDashboard: DashboardDef = {
       },
     },
 
+    // ── Row 2b: how much to trust the read, and how thoroughly it was tested ──
+    {
+      // requires: has_data, not bugs/test_cases/localization — this describes
+      // the INGEST, not any one domain, so it stays visible even on a source
+      // with none of the others (e.g. a bugs-only Postgres read).
+      w: 6, h: 1, requires: ['has_data'],
+      widget: {
+        type: 'metric', metric: 'qa.confidence_score',
+        title: 'Confidence Score', subtitle: 'Source columns resolved cleanly',
+        icon: 'cpu', iconColor: 'purple', goodDirection: 'up',
+      },
+    },
+    {
+      // requires: modules (>1) — one module's coverage is the same number
+      // twice, same rule as the module breakdown table below.
+      w: 6, h: 1, requires: ['modules'],
+      widget: {
+        type: 'metric', metric: 'qa.module_coverage',
+        title: 'Module Coverage', subtitle: 'Modules with at least one run',
+        icon: 'layers', iconColor: 'green', goodDirection: 'up',
+      },
+    },
+
     // ── Row 3: bug flow + severity shape ──
     {
       w: 7, h: 3, requires: ['bug_dates'],

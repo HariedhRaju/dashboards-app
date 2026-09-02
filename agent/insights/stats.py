@@ -67,6 +67,15 @@ def bug_stats(cur, snapshot_id: str) -> dict[str, Any]:
         GROUP BY 1 ORDER BY value DESC
     """, [snapshot_id])
 
+    # Only bugs with a recorded build — an unbuilt/blank field is not "build
+    # zero", it is a fact the source never gave, and it would otherwise
+    # dominate every multi-build source as a fake plurality bucket.
+    by_build = _rows(cur, """
+        SELECT build AS key, COUNT(*)::int AS value
+        FROM qa_bugs WHERE snapshot_id = %s AND build IS NOT NULL
+        GROUP BY build ORDER BY value DESC LIMIT 12
+    """, [snapshot_id])
+
     # Severity x status crosstab — where "an open Major" actually lives.
     crosstab = _rows(cur, """
         SELECT severity, status, COUNT(*)::int AS n
@@ -83,6 +92,7 @@ def bug_stats(cur, snapshot_id: str) -> dict[str, Any]:
         "by_severity": {r["key"]: r["value"] for r in by_severity},
         "by_status": {r["key"]: r["value"] for r in by_status},
         "by_issue_type": {r["key"]: r["value"] for r in by_type},
+        "by_build": {r["key"]: r["value"] for r in by_build},
         "severity_status_crosstab": crosstab,
     }
 
@@ -122,12 +132,24 @@ def test_case_stats(cur, snapshot_id: str) -> dict[str, Any]:
         GROUP BY 1 ORDER BY cases DESC
     """, [snapshot_id])
 
+    # Module coverage: what share of the modules that HAVE test cases have
+    # been touched at all. Distinct from execution_rate — a suite can be 80%
+    # executed while three whole modules have zero runs, because the other
+    # modules were run repeatedly and these were never picked up. Computed
+    # from by_module rather than a second query since the grouping is already
+    # in hand.
+    modules_total = len(by_module)
+    modules_covered = sum(1 for m in by_module if m["executed"] > 0)
+
     return {
         **totals,
         # Rates as fractions; the UI decides how to render them. Guarded so an
         # empty snapshot reports 0.0 rather than dividing by zero.
         "execution_rate": round(executed / total, 4) if total else 0.0,
         "pass_rate_of_executed": round(passed / executed, 4) if executed else 0.0,
+        "module_coverage": round(modules_covered / modules_total, 4) if modules_total else 0.0,
+        "modules_total": modules_total,
+        "modules_covered": modules_covered,
         "by_status": {r["key"]: r["value"] for r in by_status},
         "by_module": by_module,
     }
@@ -231,10 +253,22 @@ def ingest_stats(cur, snapshot_id: str) -> dict[str, Any]:
 
 def full_stats(cur, snapshot_id: str) -> dict[str, Any]:
     """The complete statistics payload — the narrator's only source of numbers."""
+    ingest = ingest_stats(cur, snapshot_id)
     return {
         "snapshot_id": snapshot_id,
-        "ingest": ingest_stats(cur, snapshot_id),
+        "ingest": ingest,
         "bugs": bug_stats(cur, snapshot_id),
         "test_cases": test_case_stats(cur, snapshot_id),
         "localization": matrix_stats(cur, snapshot_id),
+        # Re-surfaced from `ingest` under a name a reader recognizes on sight.
+        # Deliberately just the column-resolution ratio — blending it with
+        # something like "did narration succeed" into one composite index
+        # would answer two different questions with one number and make
+        # neither traceable back to what actually moved it.
+        "confidence": {
+            "ingest_confidence": ingest.get("column_resolution_rate", 0.0),
+            "columns_resolved": ingest.get("columns_resolved", 0),
+            "columns_total": ingest.get("columns_resolved", 0) + ingest.get("columns_unresolved", 0),
+            "warning_count": ingest.get("warning_count", 0),
+        },
     }

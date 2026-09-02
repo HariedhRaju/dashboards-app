@@ -256,6 +256,47 @@ def qa_localization_pass_rate(cur: RealDictCursor, f: QaFilters) -> dict:
     """, fmt="percent_whole")
 
 
+@register_metric("qa.confidence_score", kind="scalar", filter_model=QaFilters, cache_ttl=10)
+def qa_confidence_score(cur: RealDictCursor, f: QaFilters) -> dict:
+    """How much of the source the agent could confidently map to a known
+    field — the same column-resolution ratio surfaced in the ingest
+    receipt and the report's `stats.confidence`, kept in one place so all
+    three never disagree. Independent of whether analysis has been run:
+    ingest alone decides it, so this is meaningful the moment a workbook
+    lands, before anyone clicks Run analysis.
+    """
+    return _snapshot_scalar(cur, f, """
+        SELECT CASE WHEN COUNT(*) = 0 THEN 0
+                    ELSE ROUND(100.0 * COUNT(*) FILTER (WHERE col->>'field' IS NOT NULL)
+                               / COUNT(*), 1)
+               END AS value
+        FROM qa_snapshots s,
+             jsonb_array_elements(s.sheets_json) AS sheet,
+             jsonb_array_elements(sheet->'columns') AS col
+        WHERE s.id = %s
+    """, fmt="percent_whole")
+
+
+@register_metric("qa.module_coverage", kind="scalar", filter_model=QaFilters, cache_ttl=10)
+def qa_module_coverage(cur: RealDictCursor, f: QaFilters) -> dict:
+    """Percent of modules that have at least one EXECUTED case, of modules
+    that have any case at all. Distinct from execution rate: a suite can be
+    80% executed while three whole modules sit at zero runs, because the
+    other modules absorbed all the repeats.
+    """
+    return _snapshot_scalar(cur, f, """
+        SELECT CASE WHEN COUNT(*) = 0 THEN 0
+                    ELSE ROUND(100.0 * COUNT(*) FILTER (WHERE executed_ct > 0) / COUNT(*), 1)
+               END AS value
+        FROM (
+            SELECT COALESCE(module, section, 'Unassigned') AS m,
+                   COUNT(*) FILTER (WHERE was_executed) AS executed_ct
+            FROM qa_test_cases WHERE snapshot_id = %s
+            GROUP BY 1
+        ) x
+    """, fmt="percent_whole")
+
+
 @register_metric("qa.critical_findings", kind="scalar", filter_model=QaFilters, cache_ttl=10)
 def qa_critical_findings(cur: RealDictCursor, f: QaFilters) -> dict:
     """Critical findings in the agent's latest report for this snapshot."""

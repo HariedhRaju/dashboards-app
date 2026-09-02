@@ -27,3 +27,8 @@ Thumbs.db
 # in the repo root to try the agent should not become a commit.
 *.xlsx
 *.xlsm
+
+# Generated report downloads — output of the QA agent's Download report
+# button, not source. Lands wherever the browser's default download
+# directory happens to point, which can be inside the repo.
+qa-report-*.pdf
