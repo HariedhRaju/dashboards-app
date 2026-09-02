@@ -5,10 +5,10 @@ set PROJECT_DIR=%~dp0
 cd /d "%PROJECT_DIR%"
 
 echo Starting backend (FastAPI)...
-start "Dashboards Backend" cmd /k "cd /d "%PROJECT_DIR%" && call .venv\Scripts\activate.bat && uvicorn main:app --reload --port 4100"
+start "Dashboards Backend" cmd /k "cd /d "%PROJECT_DIR%" && call .venv\Scripts\activate.bat && uvicorn main:app --reload --port 4100 --host 0.0.0.0"
 
 echo Starting frontend (Vite)...
-start "Dashboards Frontend" cmd /k "cd /d "%PROJECT_DIR%dashboards-frontend" && npm run dev"
+start "Dashboards Frontend" cmd /k "cd /d "%PROJECT_DIR%dashboards-frontend" && npm run dev -- --host 0.0.0.0 --port 4099"
 
 echo Waiting for servers to start...
 timeout /t 6 /nobreak >nul

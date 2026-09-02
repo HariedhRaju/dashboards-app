@@ -378,6 +378,10 @@ def capabilities(snapshot_id: Optional[str] = None) -> dict:
         "snapshot_id": target,
         "counts": c,
         "capabilities": {
+            # A snapshot resolved at all — for tiles like ingest confidence
+            # that describe the READ, not any one of bugs/tests/localization,
+            # and so shouldn't gate on any of them individually.
+            "has_data":      True,
             "bugs":          c["bugs"] > 0,
             # A time series needs dates. A workbook whose bug sheet has no
             # usable created column would otherwise draw an empty chart.

@@ -16,10 +16,11 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import {
   ChevronDown, ChevronRight, CircleCheck, CircleDashed, Database,
-  MessageSquare, Play, Send, TriangleAlert, Upload,
+  Download, LoaderCircle, MessageSquare, Play, Send, TriangleAlert, Upload,
 } from 'lucide-react';
 
 import { API_BASE } from './api';
+import { downloadQaReportPdf } from './qa-report-pdf';
 import { useFilterActions, useFilters } from './filters';
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -77,6 +78,8 @@ type Tab = 'ingest' | 'chat' | null;
 
 export function QaConsole() {
   const [tab, setTab] = useState<Tab>(null);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
   const qc = useQueryClient();
   const filters = useFilters();
   const { setFilter } = useFilterActions();
@@ -118,17 +121,23 @@ export function QaConsole() {
     qc.invalidateQueries({ queryKey: ['qa-health'] });
   }, [qc, setFilter]);
 
-  const modelLabel = !health?.model_configured
-    ? 'no model configured'
-    : health.model_reachable
-      ? (health.model ?? 'model ready')
-      : `${health.model ?? 'model'} unreachable`;
-
-  const modelTone = !health?.model_configured
-    ? 'text-neutral-500 border-neutral-800'
-    : health.model_reachable
-      ? 'text-emerald-400 border-emerald-900/70'
-      : 'text-amber-400 border-amber-900/70';
+  /**
+   * Ask jsPDF (loaded on demand — see qa-report-pdf.ts) to build the report
+   * for whatever snapshot is on screen and save it. A 404 here almost always
+   * means "not analyzed yet", so that's surfaced as the error rather than a
+   * generic failure — the fix is the Ingest panel's Run analysis, not a retry.
+   */
+  const downloadReport = async () => {
+    setDownloading(true);
+    setDownloadError(null);
+    try {
+      await downloadQaReportPdf(API_BASE, filters.snapshot_id);
+    } catch (e) {
+      setDownloadError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   return (
     <div className="mb-3">
@@ -139,16 +148,20 @@ export function QaConsole() {
                    icon={MessageSquare} label="Ask the data" />
 
         <div className="ml-auto flex items-center gap-2">
-          <span className={clsx(
-            'text-[11px] font-mono px-2 py-1 rounded-full border', modelTone,
-          )}>
-            {modelLabel}
-          </span>
-          {health?.has_snapshot && (
-            <span className="text-[11px] font-mono px-2 py-1 rounded-full border border-neutral-800 text-neutral-500">
-              {health.has_report ? 'analyzed' : 'not analyzed'}
-            </span>
+          {downloadError && (
+            <span className="text-[11px] text-amber-400">{downloadError}</span>
           )}
+          <button
+            onClick={downloadReport}
+            disabled={downloading || !health?.has_report}
+            title={!health?.has_report ? 'Run analysis first — this snapshot has no report yet.' : undefined}
+            className="flex items-center gap-1.5 text-[12px] px-2.5 py-1.5 rounded-md border border-neutral-700 bg-neutral-800 text-neutral-200 hover:bg-neutral-700 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {downloading
+              ? <LoaderCircle size={13} className="animate-spin" />
+              : <Download size={13} />}
+            {downloading ? 'Preparing…' : 'Download report'}
+          </button>
         </div>
       </div>
 
