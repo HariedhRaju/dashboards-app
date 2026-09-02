@@ -850,7 +850,7 @@ export function TableWidget({
   const isTelemetry = metric === 'bugs.telemetry';
   const effectivePageSize = pageSize ?? 15;
   const [page, setPage] = useState(1);
-  const [sort, setSort] = useState({ col: 'total_tokens', dir: 'desc' as 'asc' | 'desc' });
+  const [sort, setSort] = useState({ col: isTelemetry ? 'severity' : 'total_tokens', dir: (isTelemetry ? 'asc' : 'desc') as 'asc' | 'desc' });
 
   const extraParams = compact
     ? {}
@@ -872,7 +872,7 @@ export function TableWidget({
   const toggleSort = (col: string) => {
     if (!sortableColumns?.includes(col)) return;
     if (sort.col === col) setSort({ col, dir: sort.dir === 'asc' ? 'desc' : 'asc' });
-    else setSort({ col, dir: 'desc' });
+    else setSort({ col, dir: col === 'severity' || col === 'issue_no' ? 'asc' : 'desc' });
     setPage(1);
   };
 

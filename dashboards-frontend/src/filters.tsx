@@ -23,7 +23,7 @@ const RESERVED = new Set(['start', 'end']);
 
 function defaultRange(): { start: string; end: string } {
   const end = new Date();
-  const start = new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const start = new Date(end.getTime() - 90 * 24 * 60 * 60 * 1000);
   return { start: start.toISOString(), end: end.toISOString() };
 }
 

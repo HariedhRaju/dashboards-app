@@ -27,43 +27,59 @@ def get_ollama_base_url() -> str:
     return os.getenv("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/")
 
 
-def get_configured_model() -> str:
-    return os.getenv("BUGSY_LLM_MODEL", "qwen2.5:7b-instruct")
+PREFERRED_MODELS = [
+    "qwen2.5:3b",
+    "qwen3:4b",
+    "llama3.2:3b",
+    "qwen2.5:1.5b",
+    "llama3.2:1b",
+    "qwen2.5:0.5b",
+    "qwen2.5:7b-instruct",
+    "qwen2.5:7b",
+    "llama3.1:8b",
+]
 
 
 def get_available_models() -> list[str]:
-    """Fetch list of models currently downloaded in Ollama."""
-    url = f"{get_ollama_base_url()}/api/tags"
-    req = urllib.request.Request(url, method="GET")
+    """Query Ollama /api/tags to list available local models."""
+    base_url = get_ollama_base_url()
+    req = urllib.request.Request(f"{base_url}/api/tags", headers={"Content-Type": "application/json"})
     try:
         with urllib.request.urlopen(req, timeout=5) as response:
             data = json.loads(response.read().decode("utf-8"))
-            return [m.get("name", "") for m in data.get("models", [])]
-    except (urllib.error.URLError, TimeoutError, Exception) as err:
-        raise OllamaUnavailableError(f"Ollama server is unavailable at {get_ollama_base_url()}. Details: {str(err)}")
+            models = [m["name"] for m in data.get("models", []) if "name" in m]
+            return models
+    except Exception as err:
+        raise OllamaUnavailableError(f"Cannot reach Ollama at {base_url}: {err}")
 
 
 def resolve_active_model() -> str:
     """
     Resolve active model to use.
-    Prefers BUSGY_LLM_MODEL environment variable.
-    If exact model is absent, falls back to an available model (e.g. llama3.1:8b).
+    Prefers BUGSY_LLM_MODEL environment variable if set.
+    Otherwise picks the first available lightweight model in PREFERRED_MODELS order.
     """
-    configured = get_configured_model()
+    explicit = os.getenv("BUGSY_LLM_MODEL")
     try:
         available = get_available_models()
     except OllamaUnavailableError:
-        return configured  # Return configured if server status check fails, call will raise OllamaUnavailableError later
+        return explicit or "qwen2.5:7b-instruct"
 
     if not available:
-        return configured
+        return explicit or "qwen2.5:7b-instruct"
 
-    # Match exact name or name without tag
-    for model_name in available:
-        if model_name == configured or model_name.startswith(configured.split(":")[0]):
-            return model_name
+    if explicit:
+        for m in available:
+            if m == explicit or m.startswith(explicit.split(":")[0]):
+                return m
+        return explicit
 
-    # Return first available model if configured one is not yet ready
+    # Match preferred small models in priority order
+    for pref in PREFERRED_MODELS:
+        for m in available:
+            if m == pref or m.startswith(pref.split(":")[0]):
+                return m
+
     return available[0]
 
 

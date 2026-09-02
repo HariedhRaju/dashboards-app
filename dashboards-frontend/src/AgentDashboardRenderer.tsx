@@ -1,11 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useFilters, useFilterActions } from './filters';
 import {
   fetchDashboardInsights,
   fetchBugDetails,
   fetchDashboardAnalysis,
   fetchDynamicMetric,
+  fetchGameHealth,
+  fetchGameSummary,
+  type GameHealthResponse,
+  type FeatureHealth,
   type DashboardInsightsResponse,
   type DashboardAnalysis,
   type VisualizationPlan,
@@ -221,6 +225,266 @@ function ActivePills() {
   );
 }
 
+
+function GameHealthPanel({ projectId }: { projectId: string }) {
+  const queryClient = useQueryClient();
+  const [isRegenerating, setIsRegenerating] = useState(false);
+
+  const { data: gameHealthResponse, isPending } = useQuery<GameHealthResponse>({
+    queryKey: ['gameHealth', projectId],
+    queryFn: () => fetchGameHealth(projectId),
+    staleTime: 60_000,
+  });
+
+  const summaryQueryKey = ['gameSummary', projectId, gameHealthResponse?.data_signature || gameHealthResponse?.game?.risk_score];
+
+  const { data: gameSummaryData, isPending: isSummaryPending } = useQuery({
+    queryKey: summaryQueryKey,
+    queryFn: () => fetchGameSummary(gameHealthResponse),
+    enabled: !!gameHealthResponse,
+    staleTime: 60_000,
+  });
+
+  const handleRegenerate = async () => {
+    if (!gameHealthResponse || isRegenerating || isSummaryPending) return;
+    setIsRegenerating(true);
+    try {
+      const res = await fetchGameSummary(gameHealthResponse, true);
+      queryClient.setQueryData(summaryQueryKey, res);
+    } catch (err) {
+      console.error('Failed to regenerate summary:', err);
+    } finally {
+      setIsRegenerating(false);
+    }
+  };
+
+  const isBusy = isSummaryPending || isRegenerating;
+
+  if (isPending) {
+    return <div className="text-indigo-400 p-4">Loading Game Health...</div>;
+  }
+  
+  if (!gameHealthResponse?.game) {
+    return null;
+  }
+
+  const { game } = gameHealthResponse;
+  
+  return (
+    <div className="bg-gradient-to-br from-indigo-950/40 via-purple-900/20 to-neutral-900 border border-indigo-800/50 rounded-2xl p-6 mb-8 shadow-xl">
+      <div className="flex items-center gap-3 border-b border-indigo-800/40 pb-4 mb-4">
+        <h3 className="text-xl font-bold text-white uppercase tracking-wider">GAME HEALTH — {game.name}</h3>
+      </div>
+      
+      <div className="flex flex-col md:flex-row gap-6 mb-6">
+        <div className="flex-1 space-y-4">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">{game.health_status === 'CRITICAL' ? '❗' : game.health_status === 'HIGH' ? '⚠' : game.health_status === 'MEDIUM' ? '◐' : '✓'}</span>
+            <span className="text-xl font-bold text-white">{game.health_status} RISK</span>
+          </div>
+          <div className="flex flex-wrap gap-4 text-sm text-neutral-300 font-medium bg-neutral-900/60 p-3 rounded-lg border border-neutral-800">
+            <span><span className="text-white text-base">{game.total_bugs}</span> Total Bugs</span>
+            <span><span className="text-white text-base">{game.open_bugs + (game.in_progress_bugs || 0)}</span> Unresolved Backlog ({game.open_bugs} open, {game.in_progress_bugs || 0} in progress)</span>
+            <span><span className="text-rose-400 text-base">{game.open_critical_bugs ?? 1}</span> P1 Critical Open</span>
+            <span><span className="text-indigo-300 text-base">{game.feature_count}</span> Features</span>
+          </div>
+        </div>
+        
+        <div className="flex gap-4 md:border-l md:border-indigo-800/40 md:pl-6">
+          <div className="bg-neutral-900/60 border border-indigo-900/30 rounded-xl p-4 w-32 flex flex-col justify-center items-center">
+            <div className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider mb-1">Risk</div>
+            <div className={`text-2xl font-bold ${game.risk_score > 7.5 ? 'text-rose-500' : 'text-white'}`}>{game.risk_score.toFixed(1)} <span className="text-sm text-neutral-500">/ 10</span></div>
+          </div>
+          <div className="bg-neutral-900/60 border border-indigo-900/30 rounded-xl p-4 w-32 flex flex-col justify-center items-center">
+            <div className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider mb-1">Confidence</div>
+            <div className="text-2xl font-bold text-white">{game.confidence_score}%</div>
+          </div>
+        </div>
+      </div>
+      
+      <div className="bg-neutral-900/80 border border-indigo-800/50 rounded-xl p-5 relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500"></div>
+        <div className="flex items-center justify-between mb-2">
+          <div className="text-xs font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-2">
+            <Sparkles className="w-4 h-4" /> AI QA SUMMARY
+          </div>
+          <button
+            onClick={handleRegenerate}
+            disabled={isBusy}
+            className="flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-200 transition-colors disabled:opacity-50"
+            title="Regenerate summary based on latest data"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isBusy ? 'animate-spin' : ''}`} />
+            <span>Regenerate</span>
+          </button>
+        </div>
+        {isBusy ? (
+          <div className="text-sm text-indigo-300 animate-pulse flex items-center gap-2 py-1">
+            <RefreshCw className="w-4 h-4 animate-spin" />
+            <span>Analyzing complete game & feature metrics with AI...</span>
+          </div>
+        ) : (
+          <p className="text-sm text-neutral-200 leading-relaxed">
+            {gameSummaryData?.summary || "Summary temporarily unavailable. Dashboard metrics are still available."}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function FeatureAnalysisModal({ feature, onClose }: { feature: FeatureHealth, onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+      <div className="bg-neutral-900 border border-indigo-800/50 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+        <div className="p-6 border-b border-indigo-800/40 flex justify-between items-center bg-indigo-950/20">
+          <h2 className="text-xl font-bold text-white uppercase tracking-wider">FEATURE ANALYSIS — {feature.name}</h2>
+          <button onClick={onClose} className="text-neutral-400 hover:text-white">✕</button>
+        </div>
+        
+        <div className="p-6 overflow-y-auto space-y-6">
+          <div className="flex items-center gap-3">
+            <span className="text-3xl">{feature.health_status === 'CRITICAL' ? '❗' : feature.health_status === 'HIGH' ? '⚠' : feature.health_status === 'MEDIUM' ? '◐' : '✓'}</span>
+            <span className="text-2xl font-bold text-white">{feature.health_status}</span>
+          </div>
+          
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="bg-neutral-800/50 rounded-xl p-4 border border-neutral-700/50">
+               <div className="text-xs text-neutral-400 uppercase">Risk Score</div>
+               <div className={`text-xl font-bold ${feature.risk_score >= 7 ? 'text-rose-400' : feature.risk_score >= 4 ? 'text-amber-400' : 'text-white'}`}>{feature.risk_score.toFixed(1)} / 10</div>
+            </div>
+            <div className="bg-neutral-800/50 rounded-xl p-4 border border-neutral-700/50">
+               <div className="text-xs text-neutral-400 uppercase">Confidence</div>
+               <div className="text-xl font-bold text-white">{feature.confidence_score}%</div>
+            </div>
+            <div className="bg-neutral-800/50 rounded-xl p-4 border border-neutral-700/50">
+               <div className="text-xs text-neutral-400 uppercase">Total Bugs</div>
+               <div className="text-xl font-bold text-white">{feature.total_bugs}</div>
+            </div>
+            <div className="bg-neutral-800/50 rounded-xl p-4 border border-neutral-700/50">
+               <div className="text-xs text-neutral-400 uppercase">Active / Unresolved</div>
+               <div className="text-xl font-bold text-white">
+                 {feature.open_bugs + (feature.in_progress_bugs || 0)}
+                 <span className="text-[11px] text-neutral-400 ml-1 font-normal">
+                   ({feature.open_bugs} open, {feature.in_progress_bugs || 0} in progress)
+                 </span>
+               </div>
+            </div>
+          </div>
+          
+          <div className="bg-neutral-800/50 rounded-xl p-4 border border-neutral-700/50">
+            <div className="text-xs text-neutral-400 uppercase tracking-wider mb-3">Lifetime Severity Distribution</div>
+            <div className="flex gap-6 text-sm font-medium">
+               <span className="text-rose-400">P1: {feature.critical_bugs}</span>
+               <span className="text-amber-400">P2: {feature.high_bugs}</span>
+               <span className="text-indigo-400">P3: {feature.medium_bugs}</span>
+               <span className="text-neutral-400">P4: {feature.low_bugs}</span>
+            </div>
+          </div>
+          
+          {feature.bug_list && feature.bug_list.length > 0 && (
+            <div className="bg-neutral-800/50 rounded-xl p-4 border border-neutral-700/50 max-h-64 overflow-y-auto">
+              <div className="text-xs text-neutral-400 uppercase tracking-wider mb-3">Associated Bugs (Active & Critical First)</div>
+              <div className="flex flex-col gap-2">
+                 {[...feature.bug_list]
+                    .sort((a, b) => {
+                      const aActive = ['open', 'in_progress'].includes(a.status?.toLowerCase()) ? 0 : 1;
+                      const bActive = ['open', 'in_progress'].includes(b.status?.toLowerCase()) ? 0 : 1;
+                      if (aActive !== bActive) return aActive - bActive;
+                      return a.severity.localeCompare(b.severity);
+                    })
+                    .map(b => (
+                   <div key={b.id} className="flex items-center gap-3 px-3 py-2 bg-neutral-900/40 rounded border border-neutral-700/50 text-sm">
+                     <SevBadge v={b.severity} />
+                     <StatBadge v={b.status} />
+                     <span className="font-mono text-neutral-400 min-w-[2.5rem]">{b.id}</span>
+                     <span className="text-neutral-200 truncate flex-1" title={b.title}>{b.title}</span>
+                     {b.severity === 'P1' && ['open', 'in_progress'].includes(b.status?.toLowerCase()) && (
+                       <span className="ml-auto text-[10px] uppercase font-bold text-rose-400 bg-rose-400/10 px-2 py-0.5 rounded shrink-0">Critical Fix</span>
+                     )}
+                   </div>
+                 ))}
+              </div>
+            </div>
+          )}
+          
+          <div className="space-y-4">
+            <div className="bg-indigo-950/20 border border-indigo-900/30 rounded-xl p-4">
+              <div className="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-2">Summary</div>
+              <p className="text-sm text-neutral-200">
+                {feature.name} currently represents a {feature.health_status.toLowerCase()} risk area with {feature.open_bugs + (feature.in_progress_bugs || 0)} active unresolved defects ({feature.open_bugs} open, {feature.in_progress_bugs || 0} in progress) out of {feature.total_bugs} total reported bugs.
+              </p>
+            </div>
+            <div className="bg-indigo-950/20 border border-indigo-900/30 rounded-xl p-4">
+              <div className="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-2">Recommendation</div>
+              <p className="text-sm text-neutral-200">
+                {(feature.open_critical_bugs ?? 0) > 0 ? "Immediate blocker resolution and regression testing required." : (feature.open_high_bugs ?? 0) > 0 ? "Investigate and resolve in-progress high-severity defects before release." : (feature.open_bugs + (feature.in_progress_bugs || 0)) > 0 ? "Address remaining open items in normal sprint cycle." : "All defects are resolved. Ready for release."}
+              </p>
+            </div>
+          </div>
+          
+        </div>
+        
+        <div className="p-4 border-t border-indigo-800/40 bg-neutral-900 flex justify-end">
+          <button onClick={onClose} className="px-6 py-2 bg-neutral-800 hover:bg-neutral-700 text-white rounded-lg font-medium transition-colors">
+            CLOSE
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FeatureHealthPanel({ projectId }: { projectId: string }) {
+  const [selectedFeature, setSelectedFeature] = useState<FeatureHealth | null>(null);
+  
+  const { data: gameHealthResponse } = useQuery<GameHealthResponse>({
+    queryKey: ['gameHealth', projectId],
+    queryFn: () => fetchGameHealth(projectId),
+    staleTime: 60_000,
+  });
+
+  if (!gameHealthResponse?.features || gameHealthResponse.features.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="mt-8 bg-neutral-900/50 border border-neutral-800 rounded-2xl p-6">
+      <h3 className="text-lg font-bold text-white uppercase tracking-wider mb-4 flex items-center gap-2">
+        <Layers className="w-5 h-5 text-indigo-400" /> FEATURE HEALTH
+      </h3>
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {gameHealthResponse.features.map(f => (
+          <div 
+            key={f.name}
+            onClick={() => setSelectedFeature(f)}
+            className="bg-neutral-800/40 hover:bg-neutral-800 border border-neutral-700/50 hover:border-indigo-500/50 rounded-xl p-4 cursor-pointer transition-all flex flex-col gap-2"
+          >
+             <div className="flex items-center gap-2 text-white font-bold text-base">
+                <span>{f.health_status === 'CRITICAL' ? '❗' : f.health_status === 'HIGH' ? '⚠' : f.health_status === 'MEDIUM' ? '◐' : '✓'}</span>
+                <span className="truncate">{f.name}</span>
+             </div>
+             <div className="text-[11px] text-neutral-400 font-medium tracking-wide flex items-center flex-wrap gap-1.5">
+                <span>{f.total_bugs} Total</span> • 
+                <span className={(f.open_critical_bugs ?? (f.health_status === 'CRITICAL' ? 1 : 0)) > 0 ? "text-rose-400 font-bold" : ""}>
+                  {f.open_critical_bugs ?? 0} Crit Open
+                </span> • 
+                <span>{f.open_bugs + (f.in_progress_bugs || 0)} Active</span> • 
+                <span className="text-indigo-300">Risk {f.risk_score.toFixed(1)}</span> • 
+                <span className={f.health_status === 'CRITICAL' ? 'text-rose-400 font-bold' : f.health_status === 'HIGH' ? 'text-amber-400 font-bold' : f.health_status === 'SAFE' ? 'text-emerald-400 font-bold' : 'text-indigo-300'}>{f.health_status}</span>
+             </div>
+          </div>
+        ))}
+      </div>
+      
+      {selectedFeature && (
+        <FeatureAnalysisModal feature={selectedFeature} onClose={() => setSelectedFeature(null)} />
+      )}
+    </div>
+  );
+}
+
 function GeneralAIDashboardAnalysis({ insightsData }: { insightsData: DashboardInsightsResponse }) {
   if (!insightsData) return null;
   return (
@@ -261,17 +525,11 @@ function GeneralAIDashboardAnalysis({ insightsData }: { insightsData: DashboardI
 function BugDetailPanel({
   issueNo, 
   projectId,
-  onAnalyze,
-  loadingAnalysis,
-  isAnalyzedView,
-  insightsData
+  onClose
 }: {
   issueNo: string; 
   projectId?: string | null;
-  onAnalyze: () => void;
-  loadingAnalysis: boolean;
-  isAnalyzedView: boolean;
-  insightsData: DashboardInsightsResponse | null;
+  onClose?: () => void;
 }) {
   const { data: det, isPending, error } = useQuery<BugDetails>({
     queryKey: ['bug-det', issueNo, projectId],
@@ -347,84 +605,10 @@ function BugDetailPanel({
               {bug.reporter_name && <span>👤 {bug.reporter_name}</span>}
             </div>
           </div>
-          <div className="shrink-0 flex items-center justify-end">
-            <button
-              onClick={onAnalyze}
-              disabled={loadingAnalysis}
-              className="flex items-center gap-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-400 hover:to-purple-500 text-white font-bold py-2.5 px-6 rounded-xl shadow-lg shadow-indigo-900/50 transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
-            >
-              {loadingAnalysis ? (
-                <>
-                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                  Analyzing...
-                </>
-              ) : (
-                <>
-                  <span className="text-lg">✨</span>
-                  ANALYSE
-                </>
-              )}
-            </button>
-          </div>
         </div>
       </div>
 
-      {/* AI Analysis Block */}
-      {isAnalyzedView && insightsData && (
-        insightsData.investigation ? (
-          <div className="bg-gradient-to-br from-indigo-950/40 via-purple-900/20 to-neutral-900 border border-indigo-800/50 rounded-2xl p-6 space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="flex items-center gap-3 border-b border-indigo-800/40 pb-4">
-              <span className="text-2xl">🧠</span>
-              <h3 className="text-lg font-bold text-indigo-300">AI ANALYSIS</h3>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="bg-neutral-900/60 border border-indigo-900/30 rounded-xl p-4">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <div className="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-2">Risk Rating</div>
-                    <div className="text-2xl font-bold text-white">{insightsData.investigation.risk_rating?.level || 'N/A'}</div>
-                  </div>
-                  {insightsData.investigation.risk_rating?.rating_deduction ? (
-                    <div className="text-right">
-                      <div className="text-[10px] font-bold text-rose-400 uppercase tracking-wider mb-1">Game Rating Impact</div>
-                      <div className="text-lg font-bold text-rose-500">-{insightsData.investigation.risk_rating.rating_deduction.toFixed(1)} / 5.0</div>
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-              <div className="bg-neutral-900/60 border border-indigo-900/30 rounded-xl p-4">
-                <div className="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-2">Confidence Score</div>
-                <div className="text-2xl font-bold text-white">{insightsData.investigation.confidence ? `${insightsData.investigation.confidence.score.toFixed(0)}%` : 'N/A'}</div>
-              </div>
-            </div>
 
-            <div className="space-y-4">
-              <div className="bg-neutral-900/60 border border-indigo-900/30 rounded-xl p-4">
-                <div className="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-2">Root Cause</div>
-                <p className="text-sm text-neutral-200 leading-relaxed">{insightsData.investigation.root_cause || 'Not identified'}</p>
-              </div>
-              
-              <div className="bg-neutral-900/60 border border-indigo-900/30 rounded-xl p-4">
-                <div className="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-2">Why This Rating</div>
-                <p className="text-sm text-neutral-200 leading-relaxed">{insightsData.investigation.why_this_rating || 'Not identified'}</p>
-              </div>
-
-              <div className="bg-neutral-900/60 border border-indigo-900/30 rounded-xl p-4">
-                <div className="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-2">Future Impact</div>
-                <p className="text-sm text-neutral-200 leading-relaxed">{insightsData.investigation.future_impact || 'Not identified'}</p>
-              </div>
-
-              <div className="bg-neutral-900/60 border border-indigo-900/30 rounded-xl p-4">
-                <div className="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-2">Recommendation</div>
-                <p className="text-sm text-neutral-200 leading-relaxed">{insightsData.investigation.recommendation || 'Not identified'}</p>
-              </div>
-            </div>
-          </div>
-        ) : (
-          <GeneralAIDashboardAnalysis insightsData={insightsData} />
-        )
-      )}
 
       {/* Cross-game banner */}
       {multiGame && (
@@ -586,7 +770,7 @@ function OverviewPanel() {
       <TableWidget
         metric="bugs.telemetry"
         title="Live Bug Telemetry"
-        sortableColumns={['created_at', 'severity', 'status']}
+        sortableColumns={['issue_no', 'severity', 'status', 'created_at']}
         pageSize={20}
         columnConfig={{
           issue_no:      { label: 'Bug #',     format: 'badge'          },
@@ -885,28 +1069,8 @@ export function AgentDashboardRenderer({ projectId }: AgentDashboardRendererProp
 
         <div className="border-t border-neutral-800/60 pt-4">
           <div className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest mb-3">Targeted Investigation</div>
-          <div className="flex items-center gap-4 flex-wrap">
-            <div className="w-64">
-              <FilterSelect dimension="bug_issues" param="issue_no" placeholder="🐛 Select Bug to Analyze..." />
-            </div>
-            
-            <button
-              onClick={handleAnalyzeClick}
-              disabled={loadingAnalysis}
-              className="flex items-center gap-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-400 hover:to-purple-500 text-white font-bold py-2 px-5 rounded-xl shadow-lg shadow-indigo-900/50 transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
-            >
-              {loadingAnalysis ? (
-                <>
-                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                  Analyzing...
-                </>
-              ) : (
-                <>
-                  <span className="text-sm">✨</span>
-                  ANALYSE
-                </>
-              )}
-            </button>
+          <div className="w-72">
+            <FilterSelect dimension="bug_issues" param="issue_no" placeholder="🐛 Select Bug to Analyze..." />
           </div>
         </div>
         <ActivePills />
@@ -924,47 +1088,44 @@ export function AgentDashboardRenderer({ projectId }: AgentDashboardRendererProp
 
       {/* Main Content Area */}
       <div className="space-y-6">
-        {isBugOnly ? (
+        {/* GAME HEALTH */}
+        {projFilter && (
+          <GameHealthPanel projectId={projFilter as string} />
+        )}
+
+        {/* Standard Dashboard (Fallback/Default) */}
+        {!isBugOnly && (
+          <div className="bg-neutral-900 border border-neutral-800 rounded-2xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-300">
+            <OverviewPanel />
+          </div>
+        )}
+        
+        {/* FEATURE HEALTH */}
+        {!isBugOnly && projFilter && (
+          <FeatureHealthPanel projectId={projFilter as string} />
+        )}
+
+        {isBugOnly && (
           <div className="space-y-6">
-            {/* General AI Dashboard Analysis (fallback) */}
-            {isAnalyzedView && insightsData && !insightsData.investigation && (
-              <GeneralAIDashboardAnalysis insightsData={insightsData} />
-            )}
             <BugDetailPanel 
               issueNo={issueNo} 
               projectId={projFilter} 
-              onAnalyze={handleAnalyzeClick}
-              loadingAnalysis={loadingAnalysis}
-              isAnalyzedView={isAnalyzedView}
-              insightsData={insightsData}
+              onClose={() => setFilter('issue_no', null)} 
             />
           </div>
-        ) : (
-          <>
-            {/* General AI Dashboard Analysis */}
-            {isAnalyzedView && insightsData && (
-              <GeneralAIDashboardAnalysis insightsData={insightsData} />
-            )}
+        )}
 
-            <OverviewPanel />
-
-            {isBugWithContext && (
-              <div className="mt-12 border-t border-neutral-800/80 pt-10">
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="h-4 w-1 bg-indigo-500 rounded-full" />
-                  <h2 className="text-sm font-black text-white uppercase tracking-widest">Selected Bug Detail</h2>
-                </div>
-                <BugDetailPanel 
-                  issueNo={issueNo} 
-                  projectId={projFilter} 
-                  onAnalyze={handleAnalyzeClick}
-                  loadingAnalysis={loadingAnalysis}
-                  isAnalyzedView={isAnalyzedView}
-                  insightsData={insightsData}
-                />
-              </div>
-            )}
-          </>
+        {isBugWithContext && (
+          <div className="mt-12 border-t border-neutral-800/80 pt-10">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="h-4 w-1 bg-indigo-500 rounded-full" />
+              <h2 className="text-sm font-black text-white uppercase tracking-widest">Selected Bug Detail</h2>
+            </div>
+            <BugDetailPanel 
+              issueNo={issueNo} 
+              projectId={projFilter} 
+            />
+          </div>
         )}
       </div>
     </div>

@@ -359,3 +359,80 @@ export function formatDelta(current: number, previous: number | null): {
   const sign = pct > 0 ? '+' : '';
   return { pct, text: `${sign}${pct.toFixed(1)}%`, direction };
 }
+
+
+export interface FeatureHealth {
+  name: string;
+  total_bugs: number;
+  open_bugs: number;
+  in_progress_bugs: number;
+  closed_bugs: number;
+  critical_bugs: number;
+  high_bugs: number;
+  medium_bugs: number;
+  low_bugs: number;
+  risk_score: number;
+  confidence_score: number;
+  health_status: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'SAFE';
+  bug_list?: { id: string; severity: string; title: string; }[];
+}
+
+export interface CriticalIssue {
+  issue_no: string;
+  title: string;
+  severity: string;
+  status: string;
+  feature?: string;
+}
+
+export interface GameHealth {
+  project_id: string;
+  name: string;
+  total_bugs: number;
+  open_bugs: number;
+  in_progress_bugs: number;
+  closed_bugs: number;
+  critical_bugs: number;
+  high_bugs: number;
+  medium_bugs: number;
+  low_bugs: number;
+  feature_count: number;
+  risk_score: number;
+  confidence_score: number;
+  health_status: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'SAFE';
+  critical_issues?: CriticalIssue[];
+}
+
+export interface GameHealthResponse {
+  game: GameHealth;
+  features: FeatureHealth[];
+  data_signature?: string;
+  top_critical_bugs?: CriticalIssue[];
+}
+
+export async function fetchGameHealth(projectId: string): Promise<GameHealthResponse> {
+  const res = await fetch(`${API_BASE}/api/bugs/game-health?project_id=${projectId}`, {
+    credentials: 'include',
+  });
+  if (!res.ok) {
+    throw new Error('Failed to fetch game health');
+  }
+  return res.json();
+}
+
+export async function fetchGameSummary(gameHealth: any, forceRefresh: boolean = false): Promise<{ summary: string }> {
+  const payload = {
+    ...gameHealth,
+    force_refresh: forceRefresh,
+  };
+  const res = await fetch(`${API_BASE}/api/bugs/game-summary`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+    credentials: 'include',
+  });
+  if (!res.ok) {
+    throw new Error('Failed to fetch game summary');
+  }
+  return res.json();
+}

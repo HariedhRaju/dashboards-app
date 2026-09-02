@@ -19,8 +19,9 @@ from .data_profiler import PROTECTED_IDENTIFIER_KEYS, _is_protected_identifier
 from .llm_client import call_llm_json, check_ollama_status, OllamaUnavailableError, OllamaModelError
 from . import replica_cursor
 
-# In-memory insights cache: sha256_hash -> result_dict
-_INSIGHTS_CACHE: Dict[str, Dict[str, Any]] = {}
+# In-memory insights cache: sha256_hash -> (timestamp, result_dict)
+_INSIGHTS_CACHE: Dict[str, tuple[float, Dict[str, Any]]] = {}
+_INSIGHTS_CACHE_TTL = 300  # 5 minutes TTL
 
 
 import csv
@@ -218,9 +219,17 @@ def get_bug_details(issue_no: str, project_id: str | None = None) -> Dict[str, A
 
     with replica_cursor() as cur:
         where_conds = [
-            "(dynamic_fields->>'source_record_id' = %s OR dynamic_fields->>'issue_no' = %s OR dynamic_fields->>'clean_issue_no' = %s OR dynamic_fields->>'source_record_id' = %s OR b.title ILIKE %s)"
+            """(
+                dynamic_fields->>'source_record_id' = %s 
+                OR dynamic_fields->>'issue_no' = %s 
+                OR dynamic_fields->>'clean_issue_no' = %s 
+                OR dynamic_fields->>'issue_no' = %s
+                OR dynamic_fields->>'source_record_id' = %s
+                OR regexp_replace(COALESCE(dynamic_fields->>'source_record_id', dynamic_fields->>'issue_no', ''), '[^0-9]', '', 'g') = %s
+                OR b.id::text = %s
+            )"""
         ]
-        params: List[Any] = [clean_issue, clean_issue, raw_num, alt_issue, f"%{clean_issue}%"]
+        params: List[Any] = [clean_issue, clean_issue, raw_num, alt_issue, alt_issue, raw_num, clean_issue]
 
         if project_id and str(project_id).strip():
             where_conds.append("b.project_id = %s")
@@ -463,6 +472,7 @@ def _compute_insights_cache_key(
         "m": metric_data or {},
         "c": context or {},
         "dd": drilldown_data or {},
+        "ts": (metric_data or {}).get("latest_data_timestamp", ""),
     }, sort_keys=True, default=str)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
@@ -713,8 +723,11 @@ def analyze_data(
         }
 
     cache_key = _compute_insights_cache_key(profile, dashboard_plan, metric_data, context, drilldown_data)
+    now = time.time()
     if cache_key in _INSIGHTS_CACHE:
-        return _INSIGHTS_CACHE[cache_key]
+        cache_ts, cached_insights = _INSIGHTS_CACHE[cache_key]
+        if now - cache_ts < _INSIGHTS_CACHE_TTL:
+            return cached_insights
 
     is_ready, status_msg = check_ollama_status()
     if not is_ready:
@@ -767,5 +780,5 @@ def analyze_data(
     print(f"[Performance] Response parsing: {t_parse*1000:.1f} ms")
     print(f"[Performance] Total analysis time: {t_total:.2f} sec\n")
 
-    _INSIGHTS_CACHE[cache_key] = validated_insights
+    _INSIGHTS_CACHE[cache_key] = (time.time(), validated_insights)
     return validated_insights

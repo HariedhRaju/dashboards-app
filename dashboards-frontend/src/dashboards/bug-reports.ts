@@ -122,9 +122,10 @@ const bugReportsDashboard: DashboardDef = {
     { w: 12, h: 6, widget: {
       type: 'table', metric: 'bugs.telemetry',
       title: 'Live Bug Telemetry Stream',
-      sortableColumns: ['created_at', 'severity', 'status'],
+      sortableColumns: ['issue_no', 'severity', 'status', 'created_at'],
       pageSize: 20,
       columnConfig: {
+        issue_no:      { label: 'Bug #', format: 'badge' },
         title:         { label: 'Title' },
         severity:      { label: 'Severity', format: 'severity-badge' },
         status:        { label: 'Status', format: 'status-badge' },

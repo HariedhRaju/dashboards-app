@@ -311,23 +311,57 @@ def severity_status_matrix(cur: RealDictCursor, f: BugFilters) -> dict:
 class BugTelemetryFilters(BugFilters):
     page: int = 1
     page_size: int = 25
-    sort: str = "created_at"
-    sort_dir: str = "desc"
+    sort: str = "severity"
+    sort_dir: str = "asc"
 
 
 _TELEMETRY_SORT = {
+    "issue_no":   "(NULLIF(regexp_replace(COALESCE(b.dynamic_fields->>'clean_issue_no', b.dynamic_fields->>'source_record_id', b.dynamic_fields->>'issue_no', '0'), '[^0-9]', '', 'g'), ''))::bigint",
     "created_at": "b.created_at",
     "updated_at": "b.updated_at",
-    "severity":   "b.severity",
-    "status":     "b.status",
+    "status":     "CASE WHEN b.status::text = 'open' THEN 1 WHEN b.status::text = 'in_progress' THEN 2 WHEN b.status::text = 'fixed' THEN 3 WHEN b.status::text = 'closed' THEN 4 ELSE 5 END",
 }
 _ALLOWED_DIRS = {"asc", "desc"}
 
 
 @register_metric("bugs.telemetry", kind="table", filter_model=BugTelemetryFilters, cache_ttl=5)
 def bugs_telemetry(cur: RealDictCursor, f: BugTelemetryFilters) -> dict:
-    sort_col = _TELEMETRY_SORT.get(f.sort, "b.created_at")
-    sort_dir = f.sort_dir if f.sort_dir in _ALLOWED_DIRS else "desc"
+    sort_dir = f.sort_dir if f.sort_dir in _ALLOWED_DIRS else "asc"
+    
+    if f.sort == "severity" or not f.sort:
+        if sort_dir == "asc":
+            order_by = """
+                CASE 
+                    WHEN b.severity::text IN ('P1', 'Blocker', 'Critical') THEN 1 
+                    WHEN b.severity::text IN ('P2', 'Major', 'High') THEN 2 
+                    WHEN b.severity::text IN ('P3', 'Minor', 'Medium') THEN 3 
+                    WHEN b.severity::text IN ('P4', 'Trivial', 'Low') THEN 4 
+                    ELSE 5 
+                END ASC,
+                CASE 
+                    WHEN b.status::text = 'open' THEN 1 
+                    WHEN b.status::text = 'in_progress' THEN 2 
+                    WHEN b.status::text = 'fixed' THEN 3 
+                    WHEN b.status::text = 'closed' THEN 4 
+                    ELSE 5 
+                END ASC,
+                (NULLIF(regexp_replace(COALESCE(b.dynamic_fields->>'clean_issue_no', b.dynamic_fields->>'source_record_id', b.dynamic_fields->>'issue_no', '0'), '[^0-9]', '', 'g'), ''))::bigint ASC NULLS LAST
+            """
+        else:
+            order_by = """
+                CASE 
+                    WHEN b.severity::text IN ('P1', 'Blocker', 'Critical') THEN 1 
+                    WHEN b.severity::text IN ('P2', 'Major', 'High') THEN 2 
+                    WHEN b.severity::text IN ('P3', 'Minor', 'Medium') THEN 3 
+                    WHEN b.severity::text IN ('P4', 'Trivial', 'Low') THEN 4 
+                    ELSE 5 
+                END DESC,
+                (NULLIF(regexp_replace(COALESCE(b.dynamic_fields->>'clean_issue_no', b.dynamic_fields->>'source_record_id', b.dynamic_fields->>'issue_no', '0'), '[^0-9]', '', 'g'), ''))::bigint DESC NULLS LAST
+            """
+    else:
+        sort_col = _TELEMETRY_SORT.get(f.sort, "b.created_at")
+        order_by = f"{sort_col} {sort_dir} NULLS LAST"
+
     offset = max(0, (f.page - 1) * f.page_size)
 
     where, params = _where(f, f.date_range_start, f.date_range_end, alias="b")
@@ -335,7 +369,7 @@ def bugs_telemetry(cur: RealDictCursor, f: BugTelemetryFilters) -> dict:
     total = cur.fetchone()["total"]
 
     cur.execute(f"""
-        SELECT COALESCE(b.dynamic_fields->>'source_record_id', b.dynamic_fields->>'issue_no', b.id::text) AS issue_no,
+        SELECT COALESCE(b.dynamic_fields->>'clean_issue_no', regexp_replace(COALESCE(b.dynamic_fields->>'source_record_id', b.dynamic_fields->>'issue_no', ''), '[^0-9]', '', 'g'), left(b.id::text, 8)) AS issue_no,
                b.title,
                b.severity,
                b.status,
@@ -347,7 +381,7 @@ def bugs_telemetry(cur: RealDictCursor, f: BugTelemetryFilters) -> dict:
         LEFT JOIN bug_projects p ON p.id = b.project_id
         LEFT JOIN bug_users u    ON u.id = b.reported_by
         WHERE {where}
-        ORDER BY {sort_col} {sort_dir}
+        ORDER BY {order_by}
         LIMIT %s OFFSET %s
     """, [*params, f.page_size, offset])
 

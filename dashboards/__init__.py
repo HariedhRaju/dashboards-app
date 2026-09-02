@@ -676,6 +676,14 @@ async def bugs_insights_endpoint(req: InsightsEndpointRequest) -> dict[str, Any]
         metric_data = {}
         with replica_cursor() as cur:
             cur.execute("""
+                SELECT MAX(updated_at)::text AS max_updated, MAX(created_at)::text AS max_created 
+                FROM bug_reports
+            """)
+            ts_row = cur.fetchone()
+            if ts_row:
+                metric_data["latest_data_timestamp"] = ts_row.get("max_updated") or ts_row.get("max_created") or ""
+
+            cur.execute("""
                 SELECT severity, COUNT(*)::int AS cnt 
                 FROM bug_reports 
                 WHERE severity IS NOT NULL 
@@ -902,3 +910,278 @@ def get_dimension(name: str) -> Any:
 from . import metrics as _metrics  # noqa: E402, F401
 from . import bug_metrics as _bug_metrics  # noqa: E402, F401
 from . import reportiq_metrics as _reportiq_metrics  # noqa: E402, F401
+
+
+@router.get("/bugs/game-health")
+def get_game_health(project_id: str):
+    """Return Game Health and Feature Health deterministic metrics."""
+    with replica_cursor() as cur:
+        # Get total bugs and project stats
+        cur.execute("""
+            SELECT 
+                project_id,
+                COUNT(*)::int as total_bugs,
+                COUNT(*) FILTER (WHERE status::text = 'open')::int as open_bugs,
+                COUNT(*) FILTER (WHERE status::text = 'in_progress')::int as in_progress_bugs,
+                COUNT(*) FILTER (WHERE status::text IN ('open', 'in_progress'))::int as unresolved_bugs,
+                COUNT(*) FILTER (WHERE status::text IN ('closed', 'fixed'))::int as closed_bugs,
+                COUNT(*) FILTER (WHERE severity::text IN ('P1', 'Blocker', 'Critical') AND status::text IN ('open', 'in_progress'))::int as open_critical_bugs,
+                COUNT(*) FILTER (WHERE severity::text IN ('P2', 'Major', 'High') AND status::text IN ('open', 'in_progress'))::int as open_high_bugs,
+                COUNT(*) FILTER (WHERE severity::text IN ('P3', 'Minor', 'Medium') AND status::text IN ('open', 'in_progress'))::int as open_medium_bugs,
+                COUNT(*) FILTER (WHERE severity::text IN ('P4', 'Trivial', 'Low') AND status::text IN ('open', 'in_progress'))::int as open_low_bugs,
+                COUNT(*) FILTER (WHERE severity::text IN ('P1', 'Blocker', 'Critical'))::int as critical_bugs,
+                COUNT(*) FILTER (WHERE severity::text IN ('P2', 'Major', 'High'))::int as high_bugs,
+                COUNT(*) FILTER (WHERE severity::text IN ('P3', 'Minor', 'Medium'))::int as medium_bugs,
+                COUNT(*) FILTER (WHERE severity::text IN ('P4', 'Trivial', 'Low'))::int as low_bugs
+            FROM bug_reports
+            WHERE project_id = %s
+            GROUP BY project_id
+        """, (project_id,))
+        game_stats = cur.fetchone()
+        
+        if not game_stats:
+            return {"game": None, "features": [], "data_signature": "", "top_critical_bugs": []}
+            
+        cur.execute("SELECT name FROM projects WHERE id = %s", (project_id,))
+        proj_row = cur.fetchone()
+        if not proj_row:
+            cur.execute("SELECT name FROM bug_projects WHERE id = %s", (project_id,))
+            proj_row = cur.fetchone()
+        proj_name = proj_row['name'] if proj_row else "Unknown Project"
+
+        # Group by feature
+        cur.execute("""
+            SELECT 
+                COALESCE(dynamic_fields->>'feature', dynamic_fields->>'module', 'Uncategorized') as name,
+                COUNT(*)::int as total_bugs,
+                COUNT(*) FILTER (WHERE status::text = 'open')::int as open_bugs,
+                COUNT(*) FILTER (WHERE status::text = 'in_progress')::int as in_progress_bugs,
+                COUNT(*) FILTER (WHERE status::text IN ('open', 'in_progress'))::int as unresolved_bugs,
+                COUNT(*) FILTER (WHERE status::text IN ('closed', 'fixed'))::int as closed_bugs,
+                COUNT(*) FILTER (WHERE severity::text IN ('P1', 'Blocker', 'Critical') AND status::text IN ('open', 'in_progress'))::int as open_critical_bugs,
+                COUNT(*) FILTER (WHERE severity::text IN ('P2', 'Major', 'High') AND status::text IN ('open', 'in_progress'))::int as open_high_bugs,
+                COUNT(*) FILTER (WHERE severity::text IN ('P3', 'Minor', 'Medium') AND status::text IN ('open', 'in_progress'))::int as open_medium_bugs,
+                COUNT(*) FILTER (WHERE severity::text IN ('P4', 'Trivial', 'Low') AND status::text IN ('open', 'in_progress'))::int as open_low_bugs,
+                COUNT(*) FILTER (WHERE severity::text IN ('P1', 'Blocker', 'Critical'))::int as critical_bugs,
+                COUNT(*) FILTER (WHERE severity::text IN ('P2', 'Major', 'High'))::int as high_bugs,
+                COUNT(*) FILTER (WHERE severity::text IN ('P3', 'Minor', 'Medium'))::int as medium_bugs,
+                COUNT(*) FILTER (WHERE severity::text IN ('P4', 'Trivial', 'Low'))::int as low_bugs,
+                json_agg(
+                    json_build_object(
+                        'id', '#' || COALESCE(dynamic_fields->>'issue_no', dynamic_fields->>'source_record_id', left(id::text, 8)),
+                        'severity', severity::text,
+                        'status', status::text,
+                        'title', title
+                    )
+                ) as bug_list
+            FROM bug_reports
+            WHERE project_id = %s
+            GROUP BY 1
+            ORDER BY total_bugs DESC
+        """, (project_id,))
+        feature_stats = cur.fetchall()
+
+        # Query top critical / high priority unresolved bugs
+        cur.execute("""
+            SELECT 
+                COALESCE(dynamic_fields->>'issue_no', dynamic_fields->>'source_record_id', left(id::text, 8)) as issue_no,
+                title,
+                severity::text as severity,
+                status::text as status,
+                COALESCE(dynamic_fields->>'feature', dynamic_fields->>'module', 'Uncategorized') as feature
+            FROM bug_reports
+            WHERE project_id = %s 
+              AND (
+                severity::text IN ('P1', 'Blocker', 'Critical')
+                OR (severity::text IN ('P2', 'Major', 'High') AND status::text IN ('open', 'in_progress'))
+              )
+            ORDER BY 
+              CASE 
+                WHEN severity::text IN ('P1', 'Blocker', 'Critical') THEN 1 
+                WHEN severity::text IN ('P2', 'Major', 'High') THEN 2 
+                ELSE 3 
+              END,
+              created_at DESC
+            LIMIT 10
+        """, (project_id,))
+        critical_issues = [dict(r) for r in cur.fetchall()]
+
+        # Latest updated timestamp for data signature
+        cur.execute("""
+            SELECT 
+                MAX(updated_at)::text as max_updated,
+                MAX(created_at)::text as max_created
+            FROM bug_reports
+            WHERE project_id = %s
+        """, (project_id,))
+        ts_row = cur.fetchone()
+        max_ts = (ts_row['max_updated'] if ts_row else None) or (ts_row['max_created'] if ts_row else None) or ""
+
+    def calc_risk(stats):
+        open_crit = stats.get('open_critical_bugs') or 0
+        open_high = stats.get('open_high_bugs') or 0
+        open_med  = stats.get('open_medium_bugs') or 0
+        open_low  = stats.get('open_low_bugs') or 0
+        unresolved = stats.get('unresolved_bugs') if stats.get('unresolved_bugs') is not None else (stats.get('open_bugs', 0) + stats.get('in_progress_bugs', 0))
+
+        if unresolved == 0:
+            return {"risk_score": 0.0, "health_status": "SAFE", "confidence_score": 100}
+
+        score = (open_crit * 3.5) + (open_high * 2.0) + (open_med * 0.8) + (open_low * 0.3)
+        score = min(10.0, round(score, 1))
+
+        if open_crit > 0 or score >= 7.0:
+            status = "CRITICAL"
+        elif open_high > 0 or score >= 4.0:
+            status = "HIGH"
+        elif score >= 2.0:
+            status = "MEDIUM"
+        else:
+            status = "SAFE"
+
+        return {"risk_score": score, "health_status": status, "confidence_score": 90}
+
+    features = []
+    for f in feature_stats:
+        metrics = calc_risk(f)
+        feat = dict(f)
+        feat.update(metrics)
+        features.append(feat)
+
+    game_metrics = calc_risk(game_stats)
+    game = dict(game_stats)
+    game.update(game_metrics)
+    game['name'] = proj_name
+    game['feature_count'] = len(features)
+    game['critical_issues'] = critical_issues
+
+    # Compute deterministic data signature
+    sig_payload = {
+        "project_id": str(project_id),
+        "total": game["total_bugs"],
+        "open": game["open_bugs"],
+        "critical": game["critical_bugs"],
+        "high": game["high_bugs"],
+        "max_ts": max_ts,
+        "critical_issues": [
+            {"id": c["issue_no"], "status": c["status"], "sev": c["severity"], "title": c["title"]}
+            for c in critical_issues
+        ],
+        "features": [
+            {"name": f["name"], "total": f["total_bugs"], "open": f["open_bugs"], "crit": f["critical_bugs"], "risk": f["risk_score"]}
+            for f in features
+        ]
+    }
+    data_signature = hashlib.sha256(json.dumps(sig_payload, sort_keys=True).encode("utf-8")).hexdigest()
+
+    return {
+        "game": game,
+        "features": features,
+        "data_signature": data_signature,
+        "top_critical_bugs": critical_issues
+    }
+
+
+_GAME_SUMMARY_CACHE: dict[str, tuple[float, dict]] = {}
+_GAME_SUMMARY_TTL = 300  # 5 minutes TTL
+
+
+@router.post("/bugs/game-summary")
+async def generate_game_summary(payload: dict):
+    from .llm_client import call_llm_json
+
+    game = payload.get("game") or {}
+    features = payload.get("features") or []
+    crit_bugs = payload.get("top_critical_bugs") or payload.get("critical_issues") or game.get("critical_issues") or []
+    data_sig = payload.get("data_signature")
+
+    force_refresh = bool(payload.get("force_refresh", False))
+
+    if not data_sig:
+        # Fallback signature calculation
+        data_sig = hashlib.sha256(json.dumps({
+            "game": game,
+            "features_len": len(features),
+            "crit_len": len(crit_bugs)
+        }, sort_keys=True, default=str).encode("utf-8")).hexdigest()
+
+    # Check cache unless force_refresh is requested
+    now = time.time()
+    if not force_refresh and data_sig in _GAME_SUMMARY_CACHE:
+        cache_ts, cached_res = _GAME_SUMMARY_CACHE[data_sig]
+        if now - cache_ts < _GAME_SUMMARY_TTL:
+            print(f"[Game Summary] Returning cached summary for signature: {data_sig[:12]}...")
+            return cached_res
+
+    print("\n" + "="*50)
+    print(f"[LLM AGENT] Starting Overall Game Summary generation (Sig: {data_sig[:12]}, Force: {force_refresh})...")
+    print("="*50)
+
+    # Format structured context for the prompt
+    game_name = game.get("name", "Current Game Project")
+    total_bugs = game.get("total_bugs", 0)
+    open_bugs = game.get("open_bugs", 0)
+    closed_bugs = game.get("closed_bugs", 0)
+    crit_bugs_cnt = game.get("critical_bugs", 0)
+    high_bugs_cnt = game.get("high_bugs", 0)
+    med_bugs_cnt = game.get("medium_bugs", 0)
+    low_bugs_cnt = game.get("low_bugs", 0)
+    risk_score = game.get("risk_score", 0)
+    health_status = game.get("health_status", "UNKNOWN")
+    confidence_score = game.get("confidence_score", 90)
+
+    features_summary = []
+    for f in sorted(features, key=lambda x: (x.get("risk_score", 0), x.get("open_bugs", 0)), reverse=True):
+        features_summary.append(
+            f"- {f.get('name')}: Health={f.get('health_status')}, Risk Score={f.get('risk_score')}/10, Open Bugs={f.get('open_bugs')}/{f.get('total_bugs')}, Critical (P1)={f.get('critical_bugs')}, High (P2)={f.get('high_bugs')}"
+        )
+    features_text = "\n".join(features_summary) if features_summary else "None"
+
+    crit_summary = []
+    for cb in crit_bugs:
+        crit_summary.append(
+            f"- #{cb.get('issue_no')}: {cb.get('title')} [Severity: {cb.get('severity')}, Status: {cb.get('status')}, Feature: {cb.get('feature', 'General')}]"
+        )
+    crit_text = "\n".join(crit_summary) if crit_summary else "No critical bugs open."
+
+    prompt = f"""You are a senior Gaming QA Analyst AI.
+
+Generate a concise, highly insightful, natural QA health summary for '{game_name}'.
+Synthesize the complete game-level statistics, feature-level risk ranking, and top critical bugs into a narrative executive paragraph.
+
+DATA FACTS:
+Game: {game_name}
+Overall Health: {health_status} (Risk Score: {risk_score}/10, Confidence: {confidence_score}%)
+Total Bugs: {total_bugs} | Open/Unresolved: {open_bugs} | Closed/Fixed: {closed_bugs}
+Severity Distribution: P1 (Critical)={crit_bugs_cnt}, P2 (High)={high_bugs_cnt}, P3 (Medium)={med_bugs_cnt}, P4 (Low)={low_bugs_cnt}
+
+FEATURE-LEVEL BREAKDOWN (Ranked by Risk):
+{features_text}
+
+TOP CRITICAL / HIGH-PRIORITY BUGS:
+{crit_text}
+
+INSTRUCTIONS:
+1. Write a fluent narrative synthesis (around 3-5 sentences) covering:
+   - Overall QA health and unresolved backlog rate for {game_name}.
+   - The top highest-risk feature(s) (name them explicitly, e.g. Save/Load, Combat) and why they represent the highest risk.
+   - Specific critical bugs that require immediate fixes (explicitly cite their bug number e.g. #12 and title).
+   - A concluding actionable priority recommendation for the QA and engineering team.
+2. Ground all numbers and statements strictly in the facts provided above. Do not invent any numbers, dates, or features.
+3. Return ONLY valid JSON in this format:
+{{
+  "summary": "Your narrative summary text here."
+}}
+"""
+    print(f"\n[Game Summary] Sending prompt to LLM (length: {len(prompt)} chars)...")
+    response_dict = call_llm_json(prompt=prompt, system_prompt="You are a senior Gaming QA Analyst AI assistant.")
+    
+    print(f"\n[Game Summary] Received response from LLM:")
+    print("-" * 40)
+    print(response_dict.get("summary", ""))
+    print("-" * 40 + "\n")
+
+    # Store in cache
+    _GAME_SUMMARY_CACHE[data_sig] = (time.time(), response_dict)
+
+    return response_dict
