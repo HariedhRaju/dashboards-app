@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import type { FilterDropdown, FilterState } from './types';
 import { ImportBugsModal } from './ImportBugsModal';
+import { DownloadReportButton } from './DownloadReportButton';
 
 // ---------------------------------------------------------------------------
 // Filter context — URL-synced global state.
@@ -190,6 +191,7 @@ export function FilterBar({
           <h1 className="text-xl font-semibold text-neutral-100">{title}</h1>
         </div>
         <div className="flex items-center gap-3">
+          <DownloadReportButton />
           <ImportBugsModal />
           <div className="inline-flex border border-neutral-800 rounded-md overflow-hidden text-sm">
             {RANGE_PRESETS.map(p => (

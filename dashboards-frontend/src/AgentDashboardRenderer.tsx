@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useFilters, useFilterActions } from './filters';
+import { ChatbotWidget } from './ChatbotWidget';
 import {
   fetchDashboardInsights,
   fetchBugDetails,
@@ -225,6 +226,106 @@ function ActivePills() {
   );
 }
 
+function PrettySummaryRenderer({ summary }: { summary: string }) {
+  if (!summary) {
+    return <div className="text-neutral-400 italic py-2">Summary temporarily unavailable. Dashboard metrics are still available.</div>;
+  }
+
+  const blocks = summary.split(/\n\s*\n/).map(b => b.trim()).filter(Boolean);
+
+  const formatTextWithBadges = (text: string) => {
+    const parts = text.split(/(Bug\s*#\d+|#\d+)/gi);
+    return parts.map((part, i) => {
+      if (/^(Bug\s*#\d+|#\d+)$/i.test(part)) {
+        return (
+          <span key={i} className="inline-flex items-center px-1.5 py-0.5 mx-0.5 rounded text-xs font-mono font-bold bg-indigo-900/90 text-indigo-200 border border-indigo-600/60 shadow-sm">
+            {part}
+          </span>
+        );
+      }
+      const boldParts = part.split(/(\*\*[^*]+\*\*)/g);
+      return boldParts.map((bp, j) => {
+        if (bp.startsWith('**') && bp.endsWith('**')) {
+          return <strong key={j} className="text-indigo-200 font-semibold">{bp.slice(2, -2)}</strong>;
+        }
+        return bp;
+      });
+    });
+  };
+
+  const getSectionMeta = (title: string) => {
+    const t = title.toLowerCase();
+    if (t.includes('health') || t.includes('executive')) {
+      return { icon: <Activity className="w-4 h-4 text-emerald-400 shrink-0" />, border: 'border-emerald-500/30', bg: 'bg-emerald-950/20', text: 'text-emerald-300' };
+    }
+    if (t.includes('critical') || t.includes('blocker') || t.includes('defect') || t.includes('risk')) {
+      return { icon: <AlertOctagon className="w-4 h-4 text-rose-400 shrink-0" />, border: 'border-rose-500/30', bg: 'bg-rose-950/20', text: 'text-rose-300' };
+    }
+    if (t.includes('subsystem') || t.includes('feature') || t.includes('hotspot')) {
+      return { icon: <Layers className="w-4 h-4 text-purple-400 shrink-0" />, border: 'border-purple-500/30', bg: 'bg-purple-950/20', text: 'text-purple-300' };
+    }
+    if (t.includes('priority') || t.includes('priorities') || t.includes('action') || t.includes('strategic')) {
+      return { icon: <Zap className="w-4 h-4 text-amber-400 shrink-0" />, border: 'border-amber-500/30', bg: 'bg-amber-950/20', text: 'text-amber-300' };
+    }
+    return { icon: <Sparkles className="w-4 h-4 text-indigo-400 shrink-0" />, border: 'border-indigo-500/30', bg: 'bg-indigo-950/20', text: 'text-indigo-300' };
+  };
+
+  return (
+    <div className="space-y-3 mt-1">
+      {blocks.map((block, idx) => {
+        if (block.startsWith('###')) {
+          const title = block.replace(/^###\s*/, '').trim();
+          return (
+            <div key={idx} className="pb-1 border-b border-indigo-800/40">
+              <h4 className="text-sm font-bold text-indigo-300 tracking-wide uppercase flex items-center gap-2">
+                <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+                {title}
+              </h4>
+            </div>
+          );
+        }
+
+        const match = block.match(/^\*\*([^*]+)\*\*:\s*([\s\S]*)$/);
+        if (match) {
+          const [, sectionTitle, content] = match;
+          const meta = getSectionMeta(sectionTitle);
+          const lines = content.split('\n').map(l => l.trim()).filter(Boolean);
+
+          return (
+            <div key={idx} className={`p-3.5 rounded-xl border ${meta.border} ${meta.bg} transition-all`}>
+              <div className="flex items-center gap-2 mb-2">
+                {meta.icon}
+                <span className={`text-xs font-bold uppercase tracking-wider ${meta.text}`}>
+                  {sectionTitle}
+                </span>
+              </div>
+              <div className="text-sm text-neutral-200 leading-relaxed space-y-1.5 pl-0.5">
+                {lines.map((line, lIdx) => {
+                  if (line.startsWith('-')) {
+                    const cleanLine = line.replace(/^-\s*/, '').trim();
+                    return (
+                      <div key={lIdx} className="flex items-start gap-2 text-neutral-300">
+                        <span className="text-indigo-400 mt-1 shrink-0">•</span>
+                        <span>{formatTextWithBadges(cleanLine)}</span>
+                      </div>
+                    );
+                  }
+                  return <p key={lIdx}>{formatTextWithBadges(line)}</p>;
+                })}
+              </div>
+            </div>
+          );
+        }
+
+        return (
+          <div key={idx} className="p-3.5 rounded-xl bg-neutral-900/60 border border-neutral-800/80 text-sm text-neutral-200 leading-relaxed">
+            {formatTextWithBadges(block)}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 function GameHealthPanel({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient();
@@ -249,8 +350,8 @@ function GameHealthPanel({ projectId }: { projectId: string }) {
     if (!gameHealthResponse || isRegenerating || isSummaryPending) return;
     setIsRegenerating(true);
     try {
-      const res = await fetchGameSummary(gameHealthResponse, true);
-      queryClient.setQueryData(summaryQueryKey, res);
+      const refreshedSummary = await fetchGameSummary(gameHealthResponse, true);
+      queryClient.setQueryData(summaryQueryKey, refreshedSummary);
     } catch (err) {
       console.error('Failed to regenerate summary:', err);
     } finally {
@@ -293,7 +394,7 @@ function GameHealthPanel({ projectId }: { projectId: string }) {
         <div className="flex gap-4 md:border-l md:border-indigo-800/40 md:pl-6">
           <div className="bg-neutral-900/60 border border-indigo-900/30 rounded-xl p-4 w-32 flex flex-col justify-center items-center">
             <div className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider mb-1">Risk</div>
-            <div className={`text-2xl font-bold ${game.risk_score > 7.5 ? 'text-rose-500' : 'text-white'}`}>{game.risk_score.toFixed(1)} <span className="text-sm text-neutral-500">/ 10</span></div>
+            <div className="text-2xl font-bold text-rose-400">{game.risk_score} <span className="text-xs text-neutral-400">/ 10</span></div>
           </div>
           <div className="bg-neutral-900/60 border border-indigo-900/30 rounded-xl p-4 w-32 flex flex-col justify-center items-center">
             <div className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider mb-1">Confidence</div>
@@ -319,14 +420,12 @@ function GameHealthPanel({ projectId }: { projectId: string }) {
           </button>
         </div>
         {isBusy ? (
-          <div className="text-sm text-indigo-300 animate-pulse flex items-center gap-2 py-1">
-            <RefreshCw className="w-4 h-4 animate-spin" />
-            <span>Analyzing complete game & feature metrics with AI...</span>
+          <div className="text-sm text-indigo-300 animate-pulse flex items-center gap-2 py-4">
+            <RefreshCw className="w-4 h-4 animate-spin text-indigo-400" />
+            <span>Generating in-depth QA report with AI...</span>
           </div>
         ) : (
-          <p className="text-sm text-neutral-200 leading-relaxed">
-            {gameSummaryData?.summary || "Summary temporarily unavailable. Dashboard metrics are still available."}
-          </p>
+          <PrettySummaryRenderer summary={gameSummaryData?.summary || ''} />
         )}
       </div>
     </div>
@@ -1128,6 +1227,9 @@ export function AgentDashboardRenderer({ projectId }: AgentDashboardRendererProp
           </div>
         )}
       </div>
+
+      {/* Cute Conversational QA Chatbot (Bottom Left) */}
+      <ChatbotWidget projectId={projFilter as string | undefined} />
     </div>
   );
 }
