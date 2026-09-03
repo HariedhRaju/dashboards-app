@@ -234,9 +234,23 @@ function FindingRow({ finding }: { finding: Finding }) {
         <div className="min-w-0 flex-1">
           <div className="text-[13px] text-neutral-100 leading-snug">{finding.title}</div>
           {open && (
-            <p className="text-[12px] text-neutral-500 mt-1 leading-relaxed">
-              {finding.detail}
-            </p>
+            <>
+              <p className="text-[12px] text-neutral-500 mt-1 leading-relaxed">
+                {finding.detail}
+              </p>
+              {finding.action && (
+                // The action is the point of the finding, so it gets its own
+                // treatment rather than blending into the explanation above it.
+                <div className="mt-1.5 flex gap-1.5 items-start">
+                  <span className="text-[9px] uppercase tracking-wider text-emerald-500/80 shrink-0 mt-[3px]">
+                    Do
+                  </span>
+                  <p className="text-[12px] text-emerald-300/90 leading-relaxed">
+                    {finding.action}
+                  </p>
+                </div>
+              )}
+            </>
           )}
         </div>
         <span className="shrink-0 text-neutral-600 mt-0.5">

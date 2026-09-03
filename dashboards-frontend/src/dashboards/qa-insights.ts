@@ -31,16 +31,21 @@ const qaInsightsDashboard: DashboardDef = {
   title: 'QA Insights — Reporting Agent',
   category: 'quality',
   capabilities: '/api/qa/capabilities',
-  // The snapshot is the unit of scope here, so range presets are inert.
+  // Presets are relative to now and this data is historical, so they stay
+  // hidden; the calendar lets the reader name the actual reporting period.
   hideDateRange: true,
+  calendarRange: true,
   console: 'qa',
   filterBar: [
-    { param: 'snapshot_id', dimension: 'qa_snapshots',   placeholder: 'Latest snapshot' },
-    { param: 'severity',    dimension: 'qa_severities',  placeholder: 'All severities' },
-    { param: 'status',      dimension: 'qa_statuses',    placeholder: 'All statuses' },
-    { param: 'issue_type',  dimension: 'qa_issue_types', placeholder: 'All issue types' },
-    { param: 'module',      dimension: 'qa_modules',     placeholder: 'All modules' },
-    { param: 'dimension',   dimension: 'qa_dimensions',  placeholder: 'All locales' },
+    { param: 'snapshot_id',    dimension: 'qa_snapshots',       placeholder: 'Latest snapshot' },
+    { param: 'severity',       dimension: 'qa_severities',      placeholder: 'All severities' },
+    { param: 'status',         dimension: 'qa_statuses',        placeholder: 'All statuses' },
+    { param: 'issue_type',     dimension: 'qa_issue_types',     placeholder: 'All issue types' },
+    { param: 'module',         dimension: 'qa_modules',         placeholder: 'All modules' },
+    { param: 'test_status',    dimension: 'qa_test_statuses',   placeholder: 'All test statuses' },
+    { param: 'test_priority',  dimension: 'qa_test_priorities', placeholder: 'All test priorities' },
+    { param: 'reporter',       dimension: 'qa_reporters',       placeholder: 'All reporters/testers' },
+    { param: 'dimension',      dimension: 'qa_dimensions',      placeholder: 'All locales' },
   ],
   layout: [
     // ── Row 1: what the agent concluded ──
@@ -98,6 +103,41 @@ const qaInsightsDashboard: DashboardDef = {
         type: 'metric', metric: 'qa.localization_pass_rate',
         title: 'Localization Pass', subtitle: 'Strings passing outright',
         icon: 'users', iconColor: 'cyan', goodDirection: 'up',
+      },
+    },
+
+    // ── Row 1b: what to do first ──
+    {
+      w: 12, h: 5, requires: ['report'],
+      widget: {
+        type: 'table', metric: 'qa.action_plan',
+        title: 'Action Plan — what to do first',
+        compact: true,
+        columnConfig: {
+          priority: { label: '#' },
+          action:   { label: 'Action', align: 'left' },
+          because:  { label: 'Because', align: 'left' },
+          level:    { label: 'Level', format: 'status-badge' },
+        },
+      },
+    },
+
+    // ── Row 1c: per-file breakdown, only when there is more than one ──
+    {
+      w: 12, h: 4, requires: ['multi_file'],
+      widget: {
+        type: 'table', metric: 'qa.by_source_file',
+        title: 'By Source File — which plan is behind, which tracker holds the bugs',
+        compact: true,
+        columnConfig: {
+          file:         { label: 'File', align: 'left' },
+          bugs:         { label: 'Bugs' },
+          open_bugs:    { label: 'Open' },
+          cases:        { label: 'Test Cases' },
+          executed:     { label: 'Executed' },
+          exec_rate:    { label: 'Exec %', format: 'percent-cell' },
+          matrix_cells: { label: 'Matrix Cells' },
+        },
       },
     },
 

@@ -154,6 +154,14 @@ class QaFilters(BaseModel):
     issue_type: str | None = None
     module: str | None = None
     dimension: str | None = None
+    # Test-case-side filters. `status`/`issue_type` above are bug fields;
+    # test cases carry their own status vocabulary (Pass/Fail/Not Run) and
+    # priority scale, so they get their own params rather than overloading
+    # the bug ones. `reporter` matches BOTH bugs and test cases — the same
+    # canonical field on each — since "show me Priya's work" spans both.
+    test_status: str | None = None
+    test_priority: str | None = None
+    reporter: str | None = None
     grain: Grain | None = None  # Only used by series metrics
 
 
@@ -321,15 +329,38 @@ _DIMENSION_QUERIES: dict[str, str] = {
         "AND snapshot_id = (SELECT id FROM qa_snapshots ORDER BY ingested_at DESC LIMIT 1) "
         "ORDER BY value",
     "qa_modules":
-        "SELECT DISTINCT COALESCE(module, section) AS value, "
-        "       COALESCE(module, section) AS label FROM qa_test_cases "
-        "WHERE COALESCE(module, section) IS NOT NULL "
-        "AND snapshot_id = (SELECT id FROM qa_snapshots ORDER BY ingested_at DESC LIMIT 1) "
+        # 'Unassigned' fallback matches _case_where/case_scope so a value
+        # picked from this dropdown narrows the same rows the tiles counted
+        # it from — a bare COALESCE without it would offer 'Unassigned' as
+        # an option and then match zero rows when selected.
+        "SELECT DISTINCT COALESCE(module, section, 'Unassigned') AS value, "
+        "       COALESCE(module, section, 'Unassigned') AS label FROM qa_test_cases "
+        "WHERE snapshot_id = (SELECT id FROM qa_snapshots ORDER BY ingested_at DESC LIMIT 1) "
         "ORDER BY value",
     "qa_dimensions":
         "SELECT DISTINCT dimension AS value, dimension AS label FROM qa_matrix_results "
         "WHERE snapshot_id = (SELECT id FROM qa_snapshots ORDER BY ingested_at DESC LIMIT 1) "
         "ORDER BY value",
+    "qa_test_statuses":
+        "SELECT DISTINCT status AS value, status AS label FROM qa_test_cases "
+        "WHERE status IS NOT NULL "
+        "AND snapshot_id = (SELECT id FROM qa_snapshots ORDER BY ingested_at DESC LIMIT 1) "
+        "ORDER BY value",
+    "qa_test_priorities":
+        "SELECT DISTINCT priority AS value, priority AS label FROM qa_test_cases "
+        "WHERE priority IS NOT NULL "
+        "AND snapshot_id = (SELECT id FROM qa_snapshots ORDER BY ingested_at DESC LIMIT 1) "
+        "ORDER BY value",
+    # Reporters span both bugs and test cases — one dropdown, one field name,
+    # matching the same `reporter` param on both sides of QaFilters.
+    "qa_reporters":
+        "SELECT DISTINCT reporter AS value, reporter AS label FROM ("
+        "  SELECT reporter FROM qa_bugs WHERE reporter IS NOT NULL "
+        "    AND snapshot_id = (SELECT id FROM qa_snapshots ORDER BY ingested_at DESC LIMIT 1) "
+        "  UNION "
+        "  SELECT reporter FROM qa_test_cases WHERE reporter IS NOT NULL "
+        "    AND snapshot_id = (SELECT id FROM qa_snapshots ORDER BY ingested_at DESC LIMIT 1) "
+        ") r ORDER BY value",
 }
 
 

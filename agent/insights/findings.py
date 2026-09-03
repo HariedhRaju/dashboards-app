@@ -18,6 +18,8 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any, Callable
 
+from .stats import ReportScope, Window, bug_scope, case_scope
+
 # Ordering for the sort. Not merely cosmetic: the narrator is handed the top
 # findings by this ranking, so it decides what the summary leads with.
 LEVEL_RANK = {"critical": 3, "warning": 2, "info": 1}
@@ -36,6 +38,11 @@ class Finding:
     #: The headline number, with the unit the UI should render.
     value: float | int | None = None
     unit: str = "count"            # 'count' | 'percent' | 'days'
+    #: What to actually DO about this. Written by the detector that raised the
+    #: finding, not by the model — the detector is the only thing that knows
+    #: precisely what it matched on, so it is the only thing that can name the
+    #: next step without guessing. Empty when a finding is purely informational.
+    action: str = ""
     evidence: list[dict[str, Any]] = field(default_factory=list)
 
     def as_dict(self) -> dict:
@@ -51,14 +58,15 @@ def _rows(cur, query: str, params: list | tuple = ()) -> list[dict]:
 #  DETECTORS — release risk
 # ══════════════════════════════════════════════════════════════════════════
 
-def open_blockers(cur, snap: str) -> list[Finding]:
+def open_blockers(cur, snap: str, scope: ReportScope | Window = None) -> list[Finding]:
     """Blocker- or Critical-severity bugs that are still open."""
-    rows = _rows(cur, """
+    where, params = bug_scope(snap, scope)
+    rows = _rows(cur, f"""
         SELECT bug_key, severity, status, summary, build
         FROM qa_bugs
-        WHERE snapshot_id = %s AND is_open AND severity_rank >= 4
+        WHERE {where} AND is_open AND severity_rank >= 4
         ORDER BY severity_rank DESC, bug_key
-    """, [snap])
+    """, params)
     if not rows:
         return []
     return [Finding(
@@ -73,29 +81,37 @@ def open_blockers(cur, snap: str) -> list[Finding]:
         ),
         impact=len(rows) * 100,
         value=len(rows),
+        action=(
+            "Verify and close "
+            + ", ".join(r["bug_key"] for r in rows[:3])
+            + (" and others" if len(rows) > 3 else "")
+            + " before sign-off. Nothing else in this report changes the "
+            "release decision while these are open."
+        ),
         evidence=rows[:10],
     )]
 
 
-def stalled_fixes(cur, snap: str) -> list[Finding]:
+def stalled_fixes(cur, snap: str, scope: ReportScope | Window = None) -> list[Finding]:
     """Bugs whose own comments record that a fix did not hold.
 
     A closed-then-failed fix is more expensive than a bug that was never
     fixed: the cycle has already paid for a verification pass that produced a
     false negative, and the status field alone will not show it.
     """
-    rows = _rows(cur, """
+    where, params = bug_scope(snap, scope)
+    rows = _rows(cur, f"""
         SELECT bug_key, severity, status, summary,
                COALESCE(comments, dev_comments) AS note
         FROM qa_bugs
-        WHERE snapshot_id = %s
+        WHERE {where}
           AND (comments ILIKE '%%fix failed%%'
             OR comments ILIKE '%%not fixed%%'
             OR comments ILIKE '%%reopen%%'
             OR dev_comments ILIKE '%%fix failed%%'
             OR dev_comments ILIKE '%%reopen%%')
         ORDER BY severity_rank DESC
-    """, [snap])
+    """, params)
     if not rows:
         return []
     return [Finding(
@@ -110,18 +126,24 @@ def stalled_fixes(cur, snap: str) -> list[Finding]:
         ),
         impact=len(rows) * 40,
         value=len(rows),
+        action=(
+            "Re-open these and re-verify against the current build. Their "
+            "status field says resolved and the verification comment says "
+            "otherwise; the comment is the one that was written last."
+        ),
         evidence=rows[:10],
     )]
 
 
-def unclosed_major_backlog(cur, snap: str) -> list[Finding]:
+def unclosed_major_backlog(cur, snap: str, scope: ReportScope | Window = None) -> list[Finding]:
     """Open Major-severity work, sized against the whole backlog."""
-    row = _rows(cur, """
+    where, params = bug_scope(snap, scope)
+    row = _rows(cur, f"""
         SELECT COUNT(*) FILTER (WHERE is_open AND severity = 'Major')::int AS open_major,
                COUNT(*) FILTER (WHERE is_open)::int                        AS open_total,
                COUNT(*)::int                                               AS total
-        FROM qa_bugs WHERE snapshot_id = %s
-    """, [snap])[0]
+        FROM qa_bugs WHERE {where}
+    """, params)[0]
     if not row["open_major"]:
         return []
     share = row["open_major"] / row["open_total"] if row["open_total"] else 0
@@ -137,6 +159,11 @@ def unclosed_major_backlog(cur, snap: str) -> list[Finding]:
         ),
         impact=row["open_major"] * 10,
         value=row["open_major"],
+        action=(
+            f"Triage the {row['open_major']} open Major bugs into ship / defer "
+            "before the next build, so the decision is made deliberately rather "
+            "than by running out of time."
+        ),
         evidence=[row],
     )]
 
@@ -145,29 +172,30 @@ def unclosed_major_backlog(cur, snap: str) -> list[Finding]:
 #  DETECTORS — coverage
 # ══════════════════════════════════════════════════════════════════════════
 
-def never_executed(cur, snap: str) -> list[Finding]:
+def never_executed(cur, snap: str, scope: ReportScope | Window = None) -> list[Finding]:
     """Planned test cases that were never run.
 
     The most under-reported risk in a QA cycle: an unexecuted case contributes
     nothing to a pass rate, so a plan that is 40% run can still show a 100%
     pass rate and read as healthy.
     """
-    row = _rows(cur, """
+    where, params = case_scope(snap, scope)
+    row = _rows(cur, f"""
         SELECT COUNT(*)::int                                  AS total,
                COUNT(*) FILTER (WHERE NOT was_executed)::int   AS never_run
-        FROM qa_test_cases WHERE snapshot_id = %s
-    """, [snap])[0]
+        FROM qa_test_cases WHERE {where}
+    """, params)[0]
     if not row["total"] or not row["never_run"]:
         return []
 
     share = row["never_run"] / row["total"]
-    modules = _rows(cur, """
+    modules = _rows(cur, f"""
         SELECT COALESCE(module, section, 'Unassigned') AS module,
                COUNT(*)::int AS never_run
         FROM qa_test_cases
-        WHERE snapshot_id = %s AND NOT was_executed
+        WHERE {where} AND NOT was_executed
         GROUP BY 1 ORDER BY never_run DESC LIMIT 10
-    """, [snap])
+    """, params)
 
     return [Finding(
         id="never-executed-cases",
@@ -182,24 +210,30 @@ def never_executed(cur, snap: str) -> list[Finding]:
         impact=share * 100 + row["never_run"],
         value=round(share * 100, 1),
         unit="percent",
+        action=(
+            f"Execute the {row['never_run']} outstanding cases"
+            + (f", starting with {modules[0]['module']} ({modules[0]['never_run']} unrun)."
+               if modules else ".")
+        ),
         evidence=modules,
     )]
 
 
-def failing_modules(cur, snap: str) -> list[Finding]:
+def failing_modules(cur, snap: str, scope: ReportScope | Window = None) -> list[Finding]:
     """Modules where the executed cases fail at an elevated rate."""
-    rows = _rows(cur, """
+    where, params = case_scope(snap, scope)
+    rows = _rows(cur, f"""
         SELECT COALESCE(module, section, 'Unassigned')       AS module,
                COUNT(*) FILTER (WHERE was_executed)::int      AS executed,
                COUNT(*) FILTER (WHERE status = 'Fail')::int   AS failed
-        FROM qa_test_cases WHERE snapshot_id = %s
+        FROM qa_test_cases WHERE {where}
         GROUP BY 1
         HAVING COUNT(*) FILTER (WHERE was_executed) >= 3
            AND COUNT(*) FILTER (WHERE status = 'Fail') > 0
         ORDER BY (COUNT(*) FILTER (WHERE status = 'Fail')::float
                   / NULLIF(COUNT(*) FILTER (WHERE was_executed), 0)) DESC
         LIMIT 10
-    """, [snap])
+    """, params)
     flagged = [r for r in rows if r["failed"] / r["executed"] >= 0.25]
     if not flagged:
         return []
@@ -219,11 +253,16 @@ def failing_modules(cur, snap: str) -> list[Finding]:
         impact=worst["fail_rate"] + len(flagged),
         value=worst["fail_rate"],
         unit="percent",
+        action=(
+            f"Investigate {worst['module']} as one problem before filing "
+            f"{worst['failed']} separate bugs — a concentrated failure rate is "
+            "usually one defect sitting under several cases."
+        ),
         evidence=flagged,
     )]
 
 
-def dangling_bug_references(cur, snap: str) -> list[Finding]:
+def dangling_bug_references(cur, snap: str, scope: ReportScope | Window = None) -> list[Finding]:
     """Test cases citing a bug id that no row in the tracker defines."""
     rows = _rows(cur, """
         SELECT DISTINCT l.bug_key
@@ -250,6 +289,11 @@ def dangling_bug_references(cur, snap: str) -> list[Finding]:
         ),
         impact=len(rows) * 5,
         value=len(rows),
+        action=(
+            "Reconcile these ids against the tracker: either the bug was logged "
+            "somewhere else and should be imported, or the citation is a typo "
+            "and the failure currently has no owner."
+        ),
         evidence=rows[:15],
     )]
 
@@ -258,7 +302,7 @@ def dangling_bug_references(cur, snap: str) -> list[Finding]:
 #  DETECTORS — localization matrix
 # ══════════════════════════════════════════════════════════════════════════
 
-def weak_dimensions(cur, snap: str) -> list[Finding]:
+def weak_dimensions(cur, snap: str, scope: ReportScope | Window = None) -> list[Finding]:
     """Languages/platforms failing materially more than the matrix as a whole.
 
     Compared against the matrix's own baseline rather than a fixed threshold —
@@ -311,11 +355,16 @@ def weak_dimensions(cur, snap: str) -> list[Finding]:
         impact=worst["not_passing_rate"] + len(flagged) * 5,
         value=worst["not_passing_rate"],
         unit="percent",
+        action=(
+            f"Re-check the {worst['dimension']} resource bundle as a whole "
+            "before the next localization pass, rather than fixing strings "
+            "one at a time."
+        ),
         evidence=flagged[:10],
     )]
 
 
-def systemic_matrix_items(cur, snap: str) -> list[Finding]:
+def systemic_matrix_items(cur, snap: str, scope: ReportScope | Window = None) -> list[Finding]:
     """Items failing across most dimensions — one defect, not many.
 
     An item that fails in every locale is not a localization bug at all; it is
@@ -350,6 +399,11 @@ def systemic_matrix_items(cur, snap: str) -> list[Finding]:
         ),
         impact=sum(r["not_passing"] for r in rows),
         value=len(rows),
+        action=(
+            "Raise ONE functional bug per item rather than one per locale — "
+            "these are the same defect observed repeatedly, and filing them "
+            "per-locale inflates the backlog without adding information."
+        ),
         evidence=rows[:12],
     )]
 
@@ -358,15 +412,16 @@ def systemic_matrix_items(cur, snap: str) -> list[Finding]:
 #  DETECTORS — concentration & data quality
 # ══════════════════════════════════════════════════════════════════════════
 
-def defect_concentration(cur, snap: str) -> list[Finding]:
+def defect_concentration(cur, snap: str, scope: ReportScope | Window = None) -> list[Finding]:
     """One issue type carrying a disproportionate share of serious bugs."""
-    rows = _rows(cur, """
+    where, params = bug_scope(snap, scope)
+    rows = _rows(cur, f"""
         SELECT COALESCE(issue_type, 'Unclassified') AS issue_type,
                COUNT(*)::int                                        AS total,
                COUNT(*) FILTER (WHERE severity_rank >= 3)::int       AS major_plus
-        FROM qa_bugs WHERE snapshot_id = %s
+        FROM qa_bugs WHERE {where}
         GROUP BY 1 ORDER BY major_plus DESC
-    """, [snap])
+    """, params)
     total_major = sum(r["major_plus"] for r in rows)
     if not rows or total_major < 5:
         return []
@@ -388,19 +443,28 @@ def defect_concentration(cur, snap: str) -> list[Finding]:
         impact=share * 50,
         value=round(share * 100, 1),
         unit="percent",
+        action=(
+            f"Point the next review or targeted test pass at {top['issue_type']} "
+            "— this is where extra scrutiny has the most leverage."
+        ),
         evidence=rows[:8],
     )]
 
 
-def duplicate_bug_keys(cur, snap: str) -> list[Finding]:
-    """The same issue id written on more than one row."""
-    rows = _rows(cur, """
-        SELECT bug_key, COUNT(*)::int AS rows_with_key,
+def duplicate_bug_keys(cur, snap: str, scope: ReportScope | Window = None) -> list[Finding]:
+    """The same issue id written on more than one row OF THE SAME FILE.
+
+    Scoped per file on purpose. Two trackers each numbering their first bug
+    "1#" is normal and not a defect; the same tracker using "1#" twice is.
+    """
+    where, params = bug_scope(snap, scope)
+    rows = _rows(cur, f"""
+        SELECT bug_key, source_file, COUNT(*)::int AS rows_with_key,
                array_agg(source_row ORDER BY source_row) AS source_rows
-        FROM qa_bugs WHERE snapshot_id = %s
-        GROUP BY bug_key HAVING COUNT(*) > 1
+        FROM qa_bugs WHERE {where}
+        GROUP BY bug_key, source_file HAVING COUNT(*) > 1
         ORDER BY rows_with_key DESC LIMIT 15
-    """, [snap])
+    """, params)
     if not rows:
         return []
     return [Finding(
@@ -415,11 +479,15 @@ def duplicate_bug_keys(cur, snap: str) -> list[Finding]:
         ),
         impact=len(rows) * 3,
         value=len(rows),
+        action=(
+            "Renumber the reused ids in the source so every per-bug figure and "
+            "every test-case citation resolves to exactly one defect."
+        ),
         evidence=rows[:10],
     )]
 
 
-def ingest_confidence(cur, snap: str) -> list[Finding]:
+def ingest_confidence(cur, snap: str, scope: ReportScope | Window = None) -> list[Finding]:
     """Columns the agent could not resolve, and values it could not parse.
 
     Reported as a finding rather than buried in a log: every other number in
@@ -462,7 +530,73 @@ def ingest_confidence(cur, snap: str) -> list[Finding]:
         ),
         impact=len(unresolved) + len(warnings) * 0.5,
         value=len(unresolved) + len(warnings),
+        action=(
+            "Check the unresolved columns against the source header row and "
+            "either rename them to something the mapper knows or accept that "
+            "their values are absent from this report."
+        ),
         evidence=(unresolved[:8] + [{"warning": w} for w in warnings[:8]]),
+    )]
+
+
+# ══════════════════════════════════════════════════════════════════════════
+#  DETECTORS — across files
+# ══════════════════════════════════════════════════════════════════════════
+
+def lagging_test_plan(cur, snap: str, scope: ReportScope | Window = None) -> list[Finding]:
+    """One test plan materially behind the others in the same snapshot.
+
+    Only possible on a multi-file snapshot, and the reason per-file identity is
+    kept. An aggregate execution rate averages the plan that is finished
+    together with the plan nobody has started, and reports a number that
+    describes neither — this names the one that is actually behind.
+    """
+    where, params = case_scope(snap, scope)
+    rows = _rows(cur, f"""
+        SELECT source_file,
+               COUNT(*)::int                                 AS cases,
+               COUNT(*) FILTER (WHERE was_executed)::int      AS executed
+        FROM qa_test_cases
+        WHERE {where} AND source_file <> ''
+        GROUP BY source_file
+        HAVING COUNT(*) >= 5
+    """, params)
+    if len(rows) < 2:
+        return []
+
+    for r in rows:
+        r["execution_rate"] = round(100 * r["executed"] / r["cases"], 1)
+    rows.sort(key=lambda r: r["execution_rate"])
+
+    worst, best = rows[0], rows[-1]
+    gap = best["execution_rate"] - worst["execution_rate"]
+    # A few points apart is normal scheduling noise, not a finding.
+    if gap < 25:
+        return []
+
+    return [Finding(
+        id="lagging-test-plan",
+        kind="coverage_gap",
+        level="warning",
+        title=(
+            f"{worst['source_file']} is at {worst['execution_rate']:.0f}% executed "
+            f"against {best['execution_rate']:.0f}% for {best['source_file']}"
+        ),
+        detail=(
+            "Test plans in this snapshot are progressing at very different "
+            "rates. The combined execution rate averages them together and "
+            "describes neither, so the plan that is behind is invisible in the "
+            "headline number."
+        ),
+        impact=gap + worst["cases"],
+        value=gap,
+        unit="percent",
+        action=(
+            f"Schedule the {worst['cases'] - worst['executed']} unrun cases in "
+            f"{worst['source_file']}, or record why that plan is deliberately "
+            "deferred so the gap stops reading as an oversight."
+        ),
+        evidence=rows,
     )]
 
 
@@ -474,6 +608,7 @@ DETECTORS: list[Callable[..., list[Finding]]] = [
     open_blockers,
     never_executed,
     stalled_fixes,
+    lagging_test_plan,
     weak_dimensions,
     systemic_matrix_items,
     failing_modules,
@@ -485,7 +620,7 @@ DETECTORS: list[Callable[..., list[Finding]]] = [
 ]
 
 
-def detect_all(cur, snapshot_id: str) -> list[Finding]:
+def detect_all(cur, snapshot_id: str, scope: ReportScope | Window = None) -> list[Finding]:
     """Run every detector, worst-first.
 
     A detector that raises is skipped with an info-level finding standing in
@@ -495,7 +630,7 @@ def detect_all(cur, snapshot_id: str) -> list[Finding]:
     found: list[Finding] = []
     for detector in DETECTORS:
         try:
-            found.extend(detector(cur, snapshot_id))
+            found.extend(detector(cur, snapshot_id, scope))
         except Exception as e:  # noqa: BLE001 — one detector must not sink the run
             found.append(Finding(
                 id=f"detector-error-{detector.__name__}",
@@ -507,6 +642,28 @@ def detect_all(cur, snapshot_id: str) -> list[Finding]:
             ))
     found.sort(key=lambda f: (LEVEL_RANK.get(f.level, 0), f.impact), reverse=True)
     return found
+
+
+def action_plan(findings: list[Finding]) -> list[dict[str, Any]]:
+    """The ranked "what to do first" list.
+
+    Purely a re-presentation of the findings that carry an action, in the order
+    they were already ranked — deliberately not a second opinion. A separately
+    computed priority order could disagree with the findings list beside it,
+    and then neither is trustworthy.
+    """
+    plan: list[dict[str, Any]] = []
+    for f in findings:
+        if not f.action:
+            continue
+        plan.append({
+            "priority": len(plan) + 1,
+            "action": f.action,
+            "because": f.title,
+            "level": f.level,
+            "finding_id": f.id,
+        })
+    return plan
 
 
 def verdict_for(findings: list[Finding], stats: dict) -> str:

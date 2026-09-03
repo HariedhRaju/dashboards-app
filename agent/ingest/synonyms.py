@@ -31,6 +31,15 @@ BUG_FIELDS: dict[str, tuple[tuple[str, ...], ValueShape]] = {
          "ticket id", "defect id", "issue id", "key", "#"),
         ValueShape.IDENTIFIER,
     ),
+    # Who filed it / owns it — a column nearly every real tracker has
+    # (Jira's "Reporter", "Assignee") that this pipeline never captured
+    # before. Kept as free text rather than an enum: a tester roster is
+    # workbook-specific, not a fixed vocabulary to canonicalize against.
+    "reporter": (
+        ("reporter", "reported by", "assignee", "assigned to", "owner",
+         "qa owner", "tester", "tested by", "raised by", "created by"),
+        ValueShape.TEXT,
+    ),
     "created": (
         ("created", "created on", "date", "date created", "reported on",
          "raised on", "opened", "logged"),
@@ -112,6 +121,16 @@ TEST_FIELDS: dict[str, tuple[tuple[str, ...], ValueShape]] = {
         ("test case id", "testcase id", "tc id", "case id", "test id",
          "test case no", "tc no", "id"),
         ValueShape.IDENTIFIER,
+    ),
+    # Same field as bugs' "reporter", same reasoning — who ran or owns this
+    # case. A distinct column set (TEST_FIELDS vs BUG_FIELDS) so the header
+    # match still counts toward whichever role's overall confidence it
+    # belongs to, but the canonical field name is shared for one filter that
+    # works across both entities.
+    "reporter": (
+        ("tester", "tested by", "assigned to", "owner", "qa owner",
+         "executed by", "reporter", "assignee"),
+        ValueShape.TEXT,
     ),
     "module": (
         ("module", "feature", "component", "area", "suite", "epic"),

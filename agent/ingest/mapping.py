@@ -282,11 +282,11 @@ def detect_role(sheet: Sheet, probe: SheetProbe) -> SheetRole:
         return SheetRole.PROGRESS
 
     header = sheet.values[probe.header_row - 1]
-    best_role, best_score = SheetRole.IGNORE, 0.0
+    best_role, best_score, best_matched = SheetRole.IGNORE, 0.0, 0
 
     for role_name in ("bugs", "test_cases"):
         fields = FIELD_SETS[role_name]
-        matched, total = 0.0, 0
+        matched, total, matched_fields = 0.0, 0, 0
         for c in probe.data_columns:
             raw = header[c] if c < len(header) else None
             if not _norm(raw):
@@ -295,6 +295,7 @@ def detect_role(sheet: Sheet, probe: SheetProbe) -> SheetRole:
             _f, score = _header_match(raw, fields)
             if score >= WEAK_MATCH:
                 matched += score / 100
+                matched_fields += 1
         ratio = matched / total if total else 0.0
 
         # A bug tracker is distinguishable from a test plan by fields only one
@@ -308,10 +309,18 @@ def detect_role(sheet: Sheet, probe: SheetProbe) -> SheetRole:
         # one of them can have: a bug records what happened ("actual result",
         # "repro rate", "dev comments"); a test case records what should
         # ("preconditions", "expected result", "test case id").
+        #
+        # "build" is NOT a bug signal either, for the identical reason and a
+        # second real incident. A per-feature test sheet laid out as item x
+        # build (rows = test items, one column per tested build) has a
+        # "Build Number" header and otherwise near-zero resolvable columns —
+        # matched=1/8. The flat +0.35 alone pushed that 0.12 ratio over the
+        # 0.45 bar and imported 172 rows of near-empty "bugs" with severity
+        # Unknown. A build column appears on trackers and test plans alike;
+        # it distinguishes nothing.
         headers = {_norm(header[c]) for c in probe.data_columns if c < len(header)}
         if role_name == "bugs" and any(
-            h.startswith(("severity", "repro", "actual", "dev ", "resolution",
-                          "build"))
+            h.startswith(("severity", "repro", "actual", "dev ", "resolution"))
             for h in headers
         ):
             ratio += 0.35
@@ -324,6 +333,22 @@ def detect_role(sheet: Sheet, probe: SheetProbe) -> SheetRole:
             ratio += 0.35
 
         if ratio > best_score:
-            best_role, best_score = SheetRole(role_name), ratio
+            best_role, best_score, best_matched = SheetRole(role_name), ratio, matched_fields
 
-    return best_role if best_score >= 0.45 else SheetRole.IGNORE
+    if best_score < 0.45:
+        return SheetRole.IGNORE
+
+    # A single strong-header boost must not, by itself, carry a sheet whose
+    # actual content the mapper barely understood. On a sheet with several
+    # real headers to judge, one resolved field plus a +0.35 boost is what
+    # committed "item x build" test sheets as bug trackers — matched=1,
+    # total=8, ratio=0.12, boosted straight past the 0.45 bar. Two resolved
+    # fields is a low bar a real tracker clears many times over; a sheet that
+    # cannot clear it is one the mapper does not understand well enough to
+    # emit records from.
+    header_evidence = sum(
+        1 for c in probe.data_columns if c < len(header) and _norm(header[c])
+    )
+    if header_evidence >= 4 and best_matched < 2:
+        return SheetRole.IGNORE
+    return best_role

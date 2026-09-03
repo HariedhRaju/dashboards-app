@@ -11,7 +11,7 @@ Configure via environment variables:
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from agent.api import router as agent_router
+from agent.api import router as agent_router, start_scheduler, stop_scheduler
 from dashboards import router as dashboards_router
 
 app = FastAPI(title="Dashboards Dev")
@@ -34,6 +34,18 @@ app.include_router(dashboards_router, prefix="/api")
 # origin — /api/qa/* is the agent, /api/metrics/* is the dashboard reading what
 # the agent produced.
 app.include_router(agent_router, prefix="/api")
+
+
+@app.on_event("startup")
+def _start_qa_scheduler():
+    # In-process only — see agent/scheduler.py's module docstring for why
+    # this doesn't survive a process restart, and why that's accepted here.
+    start_scheduler()
+
+
+@app.on_event("shutdown")
+def _stop_qa_scheduler():
+    stop_scheduler()
 
 
 @app.get("/")
