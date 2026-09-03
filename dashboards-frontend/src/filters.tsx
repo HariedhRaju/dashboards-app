@@ -118,6 +118,88 @@ function detectActivePreset(filters: FilterState): string | null {
 }
 
 // ---------------------------------------------------------------------------
+// Calendar range
+// ---------------------------------------------------------------------------
+
+/** `<input type="date">` wants yyyy-mm-dd in LOCAL time, not a UTC ISO slice. */
+function toInputDate(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+/**
+ * Two native date inputs — which open the platform's own calendar picker, so
+ * this stays keyboard-accessible and localized without shipping a date-picker
+ * dependency for two fields.
+ *
+ * `scoped` is the real state: a dashboard can be looking at ALL the data or at
+ * an explicit window, and those are different questions rather than one
+ * question with a very wide default. Keeping it explicit is what lets the
+ * report say "whole set" instead of inventing a range nobody chose.
+ */
+function CalendarRange() {
+  const filters = useFilters();
+  const { setRange, setFilter } = useFilterActions();
+  const scoped = filters.date_scoped === '1';
+
+  const start = toInputDate(filters.date_range_start);
+  const end = toInputDate(filters.date_range_end);
+
+  const update = (nextStart: string, nextEnd: string) => {
+    if (!nextStart || !nextEnd) return;
+    // End is inclusive to the reader; the API is told the inclusive dates and
+    // does its own exclusive-end arithmetic, so nothing here has to guess.
+    setRange(new Date(`${nextStart}T00:00:00`).toISOString(),
+             new Date(`${nextEnd}T23:59:59`).toISOString());
+  };
+
+  return (
+    <div className="flex items-center gap-2 flex-wrap">
+      <div className="inline-flex rounded-md border border-neutral-800 overflow-hidden text-sm">
+        <button
+          onClick={() => setFilter('date_scoped', undefined)}
+          className={
+            'px-3 py-1.5 border-r border-neutral-800 transition-colors ' +
+            (!scoped ? 'bg-neutral-800 text-neutral-100 font-medium'
+                     : 'text-neutral-400 hover:bg-neutral-900 hover:text-neutral-200')
+          }
+        >
+          All data
+        </button>
+        <button
+          onClick={() => setFilter('date_scoped', '1')}
+          className={
+            'px-3 py-1.5 transition-colors ' +
+            (scoped ? 'bg-neutral-800 text-neutral-100 font-medium'
+                    : 'text-neutral-400 hover:bg-neutral-900 hover:text-neutral-200')
+          }
+        >
+          Date range
+        </button>
+      </div>
+
+      {scoped && (
+        <div className="flex items-center gap-1.5 text-sm">
+          <input
+            type="date" value={start} max={end || undefined}
+            onChange={e => update(e.target.value, end)}
+            className="bg-neutral-900 border border-neutral-800 rounded-md px-2 py-1.5 text-neutral-200 focus:outline-none focus:border-neutral-600 [color-scheme:dark]"
+          />
+          <span className="text-neutral-600">to</span>
+          <input
+            type="date" value={end} min={start || undefined}
+            onChange={e => update(start, e.target.value)}
+            className="bg-neutral-900 border border-neutral-800 rounded-md px-2 py-1.5 text-neutral-200 focus:outline-none focus:border-neutral-600 [color-scheme:dark]"
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Dimension dropdown — fetched from /api/dimensions/:name
 // ---------------------------------------------------------------------------
 
@@ -166,7 +248,7 @@ function DimensionSelect({ dropdown }: { dropdown: FilterDropdown }) {
 // FilterBar — dashboard declares its dropdowns via `filterBar`
 // ---------------------------------------------------------------------------
 
-export function FilterBar({ title, dropdowns, showRange = true }: {
+export function FilterBar({ title, dropdowns, showRange = true, showCalendar = false }: {
   title: string;
   dropdowns?: FilterDropdown[];
   /**
@@ -176,6 +258,16 @@ export function FilterBar({ title, dropdowns, showRange = true }: {
    * reads as a broken dashboard rather than an inapplicable filter.
    */
   showRange?: boolean;
+  /**
+   * Show an explicit calendar range instead of the presets.
+   *
+   * The presets are all relative to now ("last 30 days"), which suits a live
+   * telemetry dashboard and actively misleads on ingested QA data: a workbook
+   * of bugs logged last September matches none of them, and every preset
+   * returns an empty window. A calendar lets the reader name the period the
+   * data is actually from.
+   */
+  showCalendar?: boolean;
 }) {
   const filters = useFilters();
   const { setRange } = useFilterActions();
@@ -190,6 +282,7 @@ export function FilterBar({ title, dropdowns, showRange = true }: {
     <div className="flex flex-col gap-3 mb-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-xl font-semibold text-neutral-100">{title}</h1>
+        {showCalendar && <CalendarRange />}
         <div className={
           'inline-flex border border-neutral-800 rounded-md overflow-hidden text-sm' +
           (showRange ? '' : ' hidden')

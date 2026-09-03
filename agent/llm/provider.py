@@ -52,7 +52,7 @@ class ProviderConfig:
     """
 
     host: str = "http://127.0.0.1:11434"
-    model: str = "qwen2.5:14b-instruct"
+    model: str = "qwen3.8:latest"
     temperature: float = 0.0
     timeout_s: float = 120.0
     max_retries: int = 2

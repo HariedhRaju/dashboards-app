@@ -22,6 +22,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from .stats import ReportScope, Window, bug_scope, case_scope
+
 # Per-section caps. Enough to be specific, small enough that the model cannot
 # drift into summarizing a list instead of citing from it.
 MAX_BLOCKERS = 12
@@ -42,12 +44,18 @@ def _rows(cur, sql: str, params: list) -> list[dict]:
 # citation at all. Where the id repeats, it is qualified with its module; where
 # it is already unique, it is left alone so the common case stays terse. Plans
 # with no id column fall back to the sheet row, which is unique by definition.
-CASE_REF_CTE = """
+#
+# Parameterized on the WHERE fragment rather than a fixed `snapshot_id = %s` —
+# module/status/priority/reporter filters have to narrow the base `cases` set
+# itself, not just be bolted on after, or "TC-001" could still be cited for a
+# case the filter excluded.
+def _case_ref_cte(where: str) -> str:
+    return f"""
     WITH cases AS (
         SELECT *,
                COUNT(*) OVER (PARTITION BY case_id) AS id_uses
         FROM qa_test_cases
-        WHERE snapshot_id = %s
+        WHERE {where}
     ),
     refs AS (
         SELECT *,
@@ -59,30 +67,41 @@ CASE_REF_CTE = """
                END AS case_ref
         FROM cases
     )
-"""
+    """
 
 
-def gather(cur, snapshot_id: str) -> dict[str, Any]:
-    """The citable working set for one snapshot."""
+def gather(cur, snapshot_id: str, scope: ReportScope | Window = None) -> dict[str, Any]:
+    """The citable working set for one snapshot.
+
+    Bug evidence honours the date window AND the entity filters; test-case
+    evidence honours the entity filters (module/status/priority/reporter) but
+    never the date window; localization evidence is always read whole. Same
+    asymmetry as the stats, for the same reason: only bugs carry a per-row
+    date to filter on.
+    """
+    scope = scope if isinstance(scope, ReportScope) else ReportScope(window=scope)
     s = [snapshot_id]
+    bug_where, bug_params = bug_scope(snapshot_id, scope)
+    case_where, case_params = case_scope(snapshot_id, scope)
+    case_cte = _case_ref_cte(case_where)
 
     blockers = _rows(cur, f"""
         SELECT bug_key, severity, status, COALESCE(issue_type, 'Unclassified') AS issue_type,
                summary, build
         FROM qa_bugs
-        WHERE snapshot_id = %s AND is_open AND severity_rank >= 4
+        WHERE {bug_where} AND is_open AND severity_rank >= 4
         ORDER BY severity_rank DESC, bug_key
         LIMIT {MAX_BLOCKERS}
-    """, s)
+    """, bug_params)
 
     open_major = _rows(cur, f"""
         SELECT bug_key, severity, status, COALESCE(issue_type, 'Unclassified') AS issue_type,
                summary
         FROM qa_bugs
-        WHERE snapshot_id = %s AND is_open AND severity_rank = 3
+        WHERE {bug_where} AND is_open AND severity_rank = 3
         ORDER BY bug_key
         LIMIT {MAX_BLOCKERS}
-    """, s)
+    """, bug_params)
 
     # Verification comments that contradict the status field. Worth citing by
     # id because the status column alone will not show them.
@@ -90,16 +109,16 @@ def gather(cur, snapshot_id: str) -> dict[str, Any]:
         SELECT bug_key, severity, status, summary,
                COALESCE(comments, dev_comments) AS note
         FROM qa_bugs
-        WHERE snapshot_id = %s
+        WHERE {bug_where}
           AND (comments ILIKE '%%fix failed%%' OR comments ILIKE '%%not fixed%%'
             OR comments ILIKE '%%reopen%%'     OR dev_comments ILIKE '%%fix failed%%'
             OR dev_comments ILIKE '%%reopen%%')
         ORDER BY severity_rank DESC
         LIMIT {MAX_BLOCKERS}
-    """, s)
+    """, bug_params)
 
     never_run = _rows(cur, f"""
-        {CASE_REF_CTE}
+        {case_cte}
         SELECT case_ref,
                COALESCE(module, section, 'Unassigned') AS module,
                COALESCE(title, description)            AS description,
@@ -127,10 +146,10 @@ def gather(cur, snapshot_id: str) -> dict[str, Any]:
         ORDER BY array_position(ARRAY['Core','High','Medium','Low']::text[],
                                 priority::text) NULLS LAST, source_row
         LIMIT {MAX_CASES}
-    """, s)
+    """, case_params)
 
     failed_cases = _rows(cur, f"""
-        {CASE_REF_CTE}
+        {case_cte}
         SELECT t.case_ref,
                COALESCE(t.module, t.section, 'Unassigned') AS module,
                COALESCE(t.title, t.description)            AS description,
@@ -146,7 +165,7 @@ def gather(cur, snapshot_id: str) -> dict[str, Any]:
                  t.description, t.priority, t.status
         ORDER BY t.source_row
         LIMIT {MAX_CASES}
-    """, s)
+    """, case_params)
 
     systemic = _rows(cur, f"""
         SELECT item,
@@ -182,10 +201,10 @@ def gather(cur, snapshot_id: str) -> dict[str, Any]:
                COUNT(*) FILTER (WHERE status = 'Fail')::int   AS failed,
                COUNT(*) FILTER (WHERE NOT was_executed)::int  AS never_run
         FROM qa_test_cases
-        WHERE snapshot_id = %s
+        WHERE {case_where}
         GROUP BY 1 ORDER BY cases DESC
         LIMIT {MAX_MODULES}
-    """, s)
+    """, case_params)
 
     return {
         "open_blockers": blockers,

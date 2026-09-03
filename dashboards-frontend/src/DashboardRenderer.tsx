@@ -180,7 +180,8 @@ export function DashboardRenderer({ def }: { def: DashboardDef }) {
   return (
     <div className="max-w-[1400px] mx-auto px-3 py-4 sm:px-6 sm:py-6">
       <FilterBar title={def.title} dropdowns={def.filterBar}
-                 showRange={!def.hideDateRange} />
+                 showRange={!def.hideDateRange}
+                 showCalendar={Boolean(def.calendarRange)} />
       {def.console === 'qa' && <QaConsole />}
 
       {/*

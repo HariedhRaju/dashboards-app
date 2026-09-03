@@ -60,32 +60,60 @@ A summary reporting the execution rate as a pass rate tells the reader the
 suite is failing when in fact it was never run — a different problem with a
 different owner.
 
+`stats.by_source_file` is present when the snapshot came from more than one
+file (a test plan and a bug tracker, several trackers). When it has more than
+one entry, give it its own section — an aggregate rate across files is not a
+statement about any one of them, and the file-level split is usually the most
+useful single fact in a multi-file report. Name the files by their own
+`file` value.
+
+`stats.confidence` and `stats.window` are about the READING, not the product:
+confidence is how much of the source the mapper could resolve, window is
+whether this report covers everything or a chosen date range. Mention
+confidence only when it is notably low (below ~70%) — a clean read needs no
+comment, but a poor one changes how much weight every other number should
+carry. State the window's scope plainly if `window.active` is true.
+
 The verdict is given to you. Explain it; do not revise it.
+
+This report has one audience and no length budget: write everything a
+stakeholder would need without opening the workbook. Prefer more short,
+concrete sentences—each citing its own number or id—over fewer long ones.
+Thin input produces a thin report; do not pad with restatement to hit a count.
 
 Write:
 - headline: one sentence, the single fact a release decision turns on.
-- narrative: 3-5 sentences of overview, citing at least two specific ids.
-- sections: 2-4 sections, each a distinct theme drawn from the findings
-  (release blockers, test coverage, localization, data quality). Each needs a
-  short title, a body of 2-4 sentences citing specific ids, and a `citations`
-  list of the bare ids referenced in that body.
-- risks: 1-4 concrete risk statements, each tied to a number or an id.
-- recommendation: one sentence on what should happen next, addressed to the
-  team that owns it."""
+- narrative: 5-9 sentences covering bug severity, coverage, and the most
+  notable localization or per-file finding, citing at least three ids.
+- sections: 3-6 sections, one per distinct theme actually present in the
+  input (release blockers, test coverage, by-file breakdown, localization,
+  concentration, data quality — only the ones with something to say). Each
+  needs a short title, a body of 3-6 sentences citing specific ids, and a
+  `citations` list of the bare ids referenced in that body.
+- risks: 2-6 concrete risk statements, each tied to a number or an id.
+- recommendation: 1-3 sentences on what should happen next and in what
+  order, addressed to the team that owns it."""
 
 
 class ReportSection(BaseModel):
     title: str = Field(max_length=80)
-    body: str = Field(max_length=900)
-    citations: list[str] = Field(default_factory=list, max_length=12)
+    body: str = Field(max_length=1400)
+    citations: list[str] = Field(default_factory=list, max_length=16)
 
 
 class ExecutiveSummary(BaseModel):
     headline: str = Field(max_length=240)
-    narrative: str = Field(max_length=1200)
-    sections: list[ReportSection] = Field(default_factory=list, max_length=4)
-    risks: list[str] = Field(default_factory=list, max_length=4)
-    recommendation: str = Field(default="", max_length=400)
+    # 1600, not 2000. Ollama (llama.cpp's grammar-constrained decoding) fails
+    # to compile a GBNF grammar for a plain string field once its maxLength
+    # crosses somewhere between 1950 and 2000 — confirmed by bisection against
+    # the live endpoint, where the request comes back 400 "failed to parse
+    # grammar" with no retry able to recover it, silently downgrading every
+    # report to the deterministic fallback. 1600 sits with real margin below
+    # the observed break point.
+    narrative: str = Field(max_length=1600)
+    sections: list[ReportSection] = Field(default_factory=list, max_length=6)
+    risks: list[str] = Field(default_factory=list, max_length=6)
+    recommendation: str = Field(default="", max_length=600)
 
 
 EXAMPLES = [
@@ -96,6 +124,15 @@ EXAMPLES = [
                 "bugs": {"total": 61, "open": 18, "open_blockers": 1},
                 "test_cases": {"total": 40, "executed": 18,
                                "execution_rate": 0.45, "pass_rate_of_executed": 0.72},
+                "confidence": {"ingest_confidence": 0.63, "columns_resolved": 19,
+                               "columns_total": 30},
+                "window": {"active": False},
+                "by_source_file": [
+                    {"file": "bug_tracker.xlsx", "bugs": 61, "open_bugs": 18,
+                     "cases": 0, "executed": 0, "execution_rate": None},
+                    {"file": "gameplay_plan.xlsx", "bugs": 0, "open_bugs": 0,
+                     "cases": 40, "executed": 18, "execution_rate": 0.45},
+                ],
             },
             "findings": [{"level": "critical", "title": "1 release-blocking bug still open"}],
             "evidence": {
@@ -119,8 +156,14 @@ EXAMPLES = [
                 "61 bugs were logged this cycle and 18 remain open, one of them "
                 "release-blocking: 32#, where switching the lobby to French traps "
                 "opponents in the room. Test execution stands at 45% — 18 of 40 cases "
-                "— so the 72% pass rate covers under half the plan. French is the "
-                "weakest locale by a wide margin, failing 80 of 152 checked strings."
+                "— so the 72% pass rate covers under half the plan and should not be "
+                "read as a health signal on its own. TC-6, covering Settling Frontier "
+                "on Familiar difficulty, is among the cases that have not run at all. "
+                "French is the weakest locale by a wide margin, failing 80 of 152 "
+                "checked strings. The snapshot spans two files — bug_tracker.xlsx and "
+                "gameplay_plan.xlsx — read separately below. Only 63% of source "
+                "columns resolved cleanly, so treat figures built from the unresolved "
+                "portion as a lower bound rather than an exact count."
             ),
             sections=[
                 ReportSection(
@@ -129,7 +172,8 @@ EXAMPLES = [
                         "32# is the only open Blocker and is marked QA Ready, meaning a "
                         "fix exists but has not been verified. It reproduces on the "
                         "French lobby path, which overlaps the weakest localization "
-                        "area, so it should be verified alongside the locale work."
+                        "area, so it should be verified alongside the locale work "
+                        "rather than as a separate pass."
                     ),
                     citations=["32#"],
                 ),
@@ -139,19 +183,45 @@ EXAMPLES = [
                         "22 of 40 planned cases were never executed, including TC-6 "
                         "covering Settling Frontier on Familiar difficulty. Because "
                         "unexecuted cases neither pass nor fail, the reported 72% pass "
-                        "rate describes only the 18 cases that ran."
+                        "rate describes only the 18 cases that ran, not the plan as a "
+                        "whole. A pass rate presented without this context reads as "
+                        "healthier than the coverage behind it actually is."
                     ),
                     citations=["TC-6"],
+                ),
+                ReportSection(
+                    title="By source file",
+                    body=(
+                        "bug_tracker.xlsx supplies all 61 bugs and none of the test "
+                        "coverage; gameplay_plan.xlsx supplies all 40 planned cases and "
+                        "no bugs. Combining them into one execution rate would be "
+                        "meaningless here since only one file has anything to execute — "
+                        "the 45% figure belongs to gameplay_plan.xlsx alone."
+                    ),
+                    citations=["bug_tracker.xlsx", "gameplay_plan.xlsx"],
+                ),
+                ReportSection(
+                    title="Data quality",
+                    body=(
+                        "Only 19 of 30 source columns resolved to a known field, a 63% "
+                        "confidence score below what this report normally sees. Figures "
+                        "drawn from the unresolved columns are absent rather than "
+                        "estimated, so counts here likely understate the true totals."
+                    ),
+                    citations=[],
                 ),
             ],
             risks=[
                 "32# is unverified and gates the release",
                 "22 of 40 test cases have never been executed",
                 "French fails 80 of 152 checked strings",
+                "Source confidence is 63%, below the usual bar for this workbook shape",
             ],
             recommendation=(
-                "QA should verify 32# and execute the 22 outstanding cases before "
-                "the build is considered for release."
+                "Verify 32# first, since nothing else changes the release decision while "
+                "it is open. In parallel, execute the 22 outstanding cases in "
+                "gameplay_plan.xlsx and re-run the French locale pass before the build "
+                "is considered for release."
             ),
         ),
     ),

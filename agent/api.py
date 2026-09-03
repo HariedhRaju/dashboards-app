@@ -23,19 +23,23 @@ import tempfile
 import threading
 import uuid
 from dataclasses import dataclass, field
+from datetime import date, timedelta
 from typing import Any, Optional
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from dashboards import replica_cursor
 
 from .insights.report import build_report
+from .insights.stats import ReportScope
+from . import scheduler as _scheduler_mod
 from .llm.ollama import OllamaProvider
 from .llm.prompts.chat_query import answer_question
 from .llm.provider import ProviderConfig
 from .sources.postgres import DEFAULT_BUG_MAPPING, PostgresSource, TableMapping
+from .sources.multi import MultiXlsxSource, default_label
 from .sources.xlsx import XlsxSource
 from .store import pg
 
@@ -60,6 +64,8 @@ MAX_UPLOAD_BYTES = int(os.getenv("QA_MAX_UPLOAD_MB", "25")) * 1024 * 1024
 class Job:
     id: str
     snapshot_id: str
+    #: Every filter narrowing the analysis — date window plus dimensions.
+    scope: Optional[ReportScope] = None
     status: str = "queued"                 # queued | running | done | error
     stage: str = ""
     error: Optional[str] = None
@@ -106,7 +112,7 @@ def _run_analysis(job: Job) -> None:
     job.status = "running"
     try:
         with replica_cursor() as cur:
-            report = build_report(cur, job.snapshot_id, _provider, on_stage)
+            report = build_report(cur, job.snapshot_id, _provider, on_stage, job.scope)
 
         pg.save_report(
             snapshot_id=job.snapshot_id,
@@ -173,6 +179,8 @@ class IngestSummary(BaseModel):
     matrix_result_count: int
     warnings: list[str]
     sheets: list[dict]
+    #: One entry per uploaded file, including any that failed to parse.
+    source_files: list[dict] = []
 
 
 def _persist(source, kind: str) -> IngestSummary:
@@ -188,33 +196,64 @@ def _persist(source, kind: str) -> IngestSummary:
         matrix_result_count=len(result.matrix_results),
         warnings=result.warnings,
         sheets=[s.model_dump(mode="json") for s in result.sheets],
+        source_files=result.source_files,
     )
 
 
 @router.post("/ingest", response_model=IngestSummary)
-async def ingest_workbook(file: UploadFile = File(...)) -> IngestSummary:
-    """Upload an .xlsx workbook and write it as a new snapshot."""
-    if not (file.filename or "").lower().endswith((".xlsx", ".xlsm")):
-        raise HTTPException(400, "Expected an .xlsx or .xlsm workbook.")
+async def ingest_workbook(
+    files: list[UploadFile] = File(...),
+    label: Optional[str] = Form(None),
+) -> IngestSummary:
+    """Upload one or more .xlsx workbooks and write them as ONE snapshot.
 
-    payload = await file.read()
-    if len(payload) > MAX_UPLOAD_BYTES:
-        raise HTTPException(
-            413, f"Workbook exceeds the {MAX_UPLOAD_BYTES // (1024 * 1024)}MB limit."
-        )
+    Several files, one analysis set: a QA cycle is usually a couple of test
+    plans plus a couple of bug trackers, and the questions worth asking span
+    them. Every record keeps the name of the file it came from, so the report
+    can give both the aggregate and the per-plan breakdown.
 
-    with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as tmp:
-        tmp.write(payload)
-        tmp_path = tmp.name
+    The parameter is `files` (repeated) rather than `file`; a single upload is
+    just a set of one and goes through the same path, so attribution is
+    written the same way regardless of how many arrived.
+    """
+    if not files:
+        raise HTTPException(400, "No files uploaded.")
 
+    staged: list[tuple[str, str]] = []
     try:
-        return _persist(XlsxSource(tmp_path, display_name=file.filename), "xlsx")
+        total = 0
+        for f in files:
+            name = f.filename or "workbook.xlsx"
+            if not name.lower().endswith((".xlsx", ".xlsm")):
+                raise HTTPException(400, f"{name}: expected an .xlsx or .xlsm workbook.")
+            payload = await f.read()
+            total += len(payload)
+            # The cap is on the upload as a whole, not per file — ten files
+            # just under the limit each is the same problem for the server as
+            # one file ten times over it.
+            if total > MAX_UPLOAD_BYTES:
+                raise HTTPException(
+                    413,
+                    f"Upload exceeds the {MAX_UPLOAD_BYTES // (1024 * 1024)}MB limit.",
+                )
+            with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as tmp:
+                tmp.write(payload)
+                staged.append((tmp.name, name))
+
+        source = MultiXlsxSource(
+            staged, label=label or default_label([n for _, n in staged])
+        )
+        return _persist(source, "xlsx")
     except HTTPException:
         raise
     except Exception as e:  # noqa: BLE001
-        raise HTTPException(422, f"Could not parse workbook: {e}") from e
+        raise HTTPException(422, f"Could not parse upload: {e}") from e
     finally:
-        os.unlink(tmp_path)
+        for path, _ in staged:
+            try:
+                os.unlink(path)
+            except OSError:
+                pass
 
 
 class PostgresIngestRequest(BaseModel):
@@ -270,8 +309,57 @@ def snapshots(limit: int = 50) -> dict:
 # ══════════════════════════════════════════════════════════════════════════
 
 @router.post("/analyze")
-def analyze(snapshot_id: Optional[str] = None) -> dict:
-    """Kick off analysis for a snapshot (the latest one by default)."""
+def analyze(
+    snapshot_id: Optional[str] = None,
+    date_from: Optional[date] = None,
+    date_to: Optional[date] = None,
+    severity: Optional[str] = None,
+    status: Optional[str] = None,
+    issue_type: Optional[str] = None,
+    module: Optional[str] = None,
+    test_status: Optional[str] = None,
+    test_priority: Optional[str] = None,
+    reporter: Optional[str] = None,
+) -> dict:
+    """Kick off analysis for a snapshot (the latest one by default).
+
+    `date_from`/`date_to` are inclusive calendar dates from the UI's range
+    picker. Passing neither analyses the whole set, which is the default.
+    Passing one without the other is rejected rather than half-applied — an
+    open-ended range reads as a typo more often than an intention.
+
+    The remaining params are the same dimension filters the dashboard's own
+    filter bar applies to its tiles — severity/status/issue_type/reporter for
+    bugs, module/test_status/test_priority/reporter for test cases. Threading
+    them into the SAME `ReportScope` the dashboard's queries build is what
+    keeps the narrated findings describing the data the reader is looking at,
+    rather than a stale unfiltered picture.
+
+    The window narrows bugs only; test cases and localization carry no
+    per-row date. The report records the whole scope so the reader is never
+    left inferring which numbers a filter or range touched.
+    """
+    if (date_from is None) != (date_to is None):
+        raise HTTPException(
+            400, "Provide both date_from and date_to, or neither for the whole set."
+        )
+    if date_from and date_to and date_from > date_to:
+        raise HTTPException(400, "date_from is after date_to.")
+
+    # The picker's end date is inclusive to a human and exclusive to SQL.
+    window = (date_from, date_to + timedelta(days=1)) if date_from and date_to else None
+
+    scope = ReportScope(
+        window=window,
+        severity=severity,
+        status=status,
+        issue_type=issue_type,
+        module=module,
+        test_status=test_status,
+        test_priority=test_priority,
+        reporter=reporter,
+    )
+
     with replica_cursor() as cur:
         target = snapshot_id or pg.latest_snapshot_id(cur)
         if target is None:
@@ -280,13 +368,23 @@ def analyze(snapshot_id: Optional[str] = None) -> dict:
         if cur.fetchone() is None:
             raise HTTPException(404, f"Unknown snapshot {target}")
 
-    job = Job(id=str(uuid.uuid4()), snapshot_id=target)
+    job = Job(id=str(uuid.uuid4()), snapshot_id=target, scope=scope)
     jobs.add(job)
     threading.Thread(target=_run_analysis, args=(job,), daemon=True).start()
     return {
         "job_id": job.id,
         "snapshot_id": target,
         "model_enabled": _provider is not None,
+        "window": (
+            {"start": str(date_from), "end": str(date_to)} if window else None
+        ),
+        "filters": (
+            {
+                "severity": severity, "status": status, "issue_type": issue_type,
+                "module": module, "test_status": test_status,
+                "test_priority": test_priority, "reporter": reporter,
+            } if scope.is_scoped else None
+        ),
     }
 
 
@@ -365,6 +463,11 @@ def capabilities(snapshot_id: Optional[str] = None) -> dict:
               (SELECT COUNT(DISTINCT dimension) FROM qa_matrix_results
                                                      WHERE snapshot_id = %(s)s)     AS locales,
               (SELECT COUNT(*) FROM qa_reports       WHERE snapshot_id = %(s)s)     AS reports,
+              (SELECT COUNT(DISTINCT source_file) FROM (
+                   SELECT source_file FROM qa_bugs          WHERE snapshot_id = %(s)s
+                   UNION SELECT source_file FROM qa_test_cases     WHERE snapshot_id = %(s)s
+                   UNION SELECT source_file FROM qa_matrix_results WHERE snapshot_id = %(s)s
+               ) f WHERE source_file <> '')                                         AS source_files,
               (SELECT COUNT(*) FROM qa_snapshots s2
                  WHERE s2.source_label = (SELECT source_label FROM qa_snapshots WHERE id = %(s)s)
                    AND s2.ingested_at  < (SELECT ingested_at  FROM qa_snapshots WHERE id = %(s)s))
@@ -391,6 +494,8 @@ def capabilities(snapshot_id: Optional[str] = None) -> dict:
             "test_cases":    c["test_cases"] > 0,
             # One module is not a breakdown — it is the same number twice.
             "modules":       c["modules"] > 1,
+            # One file is not a breakdown, same rule as modules.
+            "multi_file":    c["source_files"] > 1,
             "localization":  c["matrix_cells"] > 0,
             "multi_locale":  c["locales"] > 1,
             "report":        c["reports"] > 0,
@@ -453,3 +558,121 @@ def report(snapshot_id: Optional[str] = None) -> dict:
     if found is None:
         raise HTTPException(404, "No report yet — POST /api/qa/analyze first.")
     return found
+
+
+@router.get("/reports")
+def reports(snapshot_id: Optional[str] = None, limit: int = 50) -> dict:
+    """Report history — every past report (manual or scheduled), newest first.
+
+    Deliberately light: id/verdict/headline/counts, not the full payload —
+    see GET /report/{report_id} to open one specific historical report.
+    """
+    with replica_cursor() as cur:
+        return {"reports": pg.list_reports(cur, snapshot_id=snapshot_id, limit=min(limit, 200))}
+
+
+@router.get("/report/{report_id}")
+def report_by_id(report_id: str) -> dict:
+    """One specific historical report, in full — "open last Tuesday's report"."""
+    with replica_cursor() as cur:
+        found = pg.report_by_id(cur, report_id)
+    if found is None:
+        raise HTTPException(404, f"Unknown report {report_id}")
+    return found
+
+
+# ══════════════════════════════════════════════════════════════════════════
+#  SCHEDULES — recurring analysis
+# ══════════════════════════════════════════════════════════════════════════
+
+class ScheduleCreate(BaseModel):
+    label: str
+    source_label: str
+    cadence: str                          # "daily" | "weekly"
+    run_at_hour: int = 6
+    run_at_minute: int = 0
+    weekday: Optional[int] = None         # 0=Monday..6=Sunday, weekly only
+    window_mode: str = "rolling"          # "rolling" | "all"
+
+
+@router.post("/schedules")
+def create_schedule(req: ScheduleCreate) -> dict:
+    if req.cadence not in ("daily", "weekly"):
+        raise HTTPException(400, "cadence must be 'daily' or 'weekly'.")
+    if req.cadence == "weekly" and req.weekday is None:
+        raise HTTPException(400, "weekday (0=Monday..6=Sunday) is required for a weekly cadence.")
+    if not (0 <= req.run_at_hour <= 23 and 0 <= req.run_at_minute <= 59):
+        raise HTTPException(400, "run_at_hour/run_at_minute out of range.")
+    with pg.primary_cursor() as cur:
+        return pg.create_schedule(
+            cur, req.label, req.source_label, req.cadence,
+            req.run_at_hour, req.run_at_minute, req.weekday, req.window_mode,
+        )
+
+
+@router.get("/schedules")
+def list_schedules() -> dict:
+    with replica_cursor() as cur:
+        return {"schedules": pg.list_schedules(cur)}
+
+
+@router.post("/schedules/{schedule_id}/enable")
+def enable_schedule(schedule_id: str, enabled: bool = True) -> dict:
+    with pg.primary_cursor() as cur:
+        pg.set_schedule_enabled(cur, schedule_id, enabled)
+    return {"id": schedule_id, "enabled": enabled}
+
+
+@router.delete("/schedules/{schedule_id}")
+def delete_schedule(schedule_id: str) -> dict:
+    with pg.primary_cursor() as cur:
+        pg.delete_schedule(cur, schedule_id)
+    return {"id": schedule_id, "deleted": True}
+
+
+@router.get("/schedules/{schedule_id}/runs")
+def schedule_run_history(schedule_id: str, limit: int = 20) -> dict:
+    with replica_cursor() as cur:
+        return {"runs": pg.schedule_runs(cur, schedule_id, min(limit, 100))}
+
+
+@router.post("/schedules/{schedule_id}/run-now")
+def run_schedule_now(schedule_id: str) -> dict:
+    """Fire one schedule immediately, out of band from its normal cadence.
+
+    Runs synchronously — a scheduled analysis is the same handful of seconds
+    of work a manual /analyze is, so there is no need for the job/SSE
+    machinery that exists for the interactive UI's progress bar.
+    """
+    try:
+        _scheduler_mod.run_schedule_now(schedule_id, _provider, OLLAMA_MODEL if _provider else None)
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+    with replica_cursor() as cur:
+        runs = pg.schedule_runs(cur, schedule_id, limit=1)
+    return {"id": schedule_id, "last_run": runs[0] if runs else None}
+
+
+# ══════════════════════════════════════════════════════════════════════════
+#  SCHEDULER LIFECYCLE — started/stopped by the host app
+# ══════════════════════════════════════════════════════════════════════════
+
+_scheduler_thread: Optional[_scheduler_mod.SchedulerThread] = None
+
+
+def start_scheduler() -> None:
+    """Start the background polling loop. Called once from the host app's
+    startup hook — never imported and started twice, or two loops would race
+    to claim the same due schedules."""
+    global _scheduler_thread
+    if _scheduler_thread is not None:
+        return
+    _scheduler_thread = _scheduler_mod.SchedulerThread(_provider, OLLAMA_MODEL if _provider else None)
+    _scheduler_thread.start()
+
+
+def stop_scheduler() -> None:
+    global _scheduler_thread
+    if _scheduler_thread is not None:
+        _scheduler_thread.stop()
+        _scheduler_thread = None

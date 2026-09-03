@@ -25,6 +25,19 @@ interface ExecutiveSummary {
 }
 interface Finding {
   id: string; kind: string; level: 'critical' | 'warning' | 'info'; title: string; detail: string;
+  action: string;
+}
+interface ActionPlanItem {
+  priority: number; action: string; because: string; level: string;
+}
+/** What the reporting window narrowed, recorded by the backend so the PDF
+ *  states the same scope the dashboard does rather than inferring its own. */
+interface WindowStats {
+  active: boolean; start: string | null; end: string | null; applies_to: string;
+}
+interface SourceFileStats {
+  file: string; bugs: number; open_bugs: number; cases: number;
+  executed: number; failed: number; execution_rate: number | null;
 }
 interface BugStats {
   total: number; open: number; open_blockers: number; open_major_plus: number;
@@ -61,10 +74,13 @@ interface QaReport {
   partial: boolean;
   executive_summary: ExecutiveSummary;
   findings: Finding[];
+  action_plan: ActionPlanItem[];
   counts: { critical: number; warning: number; info: number };
   stats: {
     bugs: BugStats; test_cases: TestCaseStats; localization: LocalizationStats; ingest: IngestStats;
     confidence: ConfidenceStats;
+    window: WindowStats;
+    by_source_file: SourceFileStats[];
   };
   evidence: {
     open_blockers: EvidenceBug[]; open_major: EvidenceBug[];
@@ -127,10 +143,19 @@ const FOOTER_Y = PAGE_H - 10;
 //  Fetch
 // ══════════════════════════════════════════════════════════════════════════
 
-async function fetchReport(apiBase: string, snapshotId?: string): Promise<QaReport> {
-  const qs = snapshotId ? `?snapshot_id=${encodeURIComponent(snapshotId)}` : '';
-  const res = await fetch(`${apiBase}/api/qa/report${qs}`, { credentials: 'include' });
-  if (res.status === 404) throw new Error('No analysis has been run for this snapshot yet.');
+async function fetchReport(apiBase: string, snapshotId?: string, reportId?: string): Promise<QaReport> {
+  // A specific historical report (report history's "download this one")
+  // bypasses "latest for this snapshot" entirely — reportId, when given,
+  // names the exact row.
+  const url = reportId
+    ? `${apiBase}/api/qa/report/${encodeURIComponent(reportId)}`
+    : `${apiBase}/api/qa/report${snapshotId ? `?snapshot_id=${encodeURIComponent(snapshotId)}` : ''}`;
+  const res = await fetch(url, { credentials: 'include' });
+  if (res.status === 404) {
+    throw new Error(reportId
+      ? 'That report no longer exists.'
+      : 'No analysis has been run for this snapshot yet.');
+  }
   if (!res.ok) throw new Error(`Could not load the report (${res.status}).`);
   return res.json();
 }
@@ -139,8 +164,10 @@ async function fetchReport(apiBase: string, snapshotId?: string): Promise<QaRepo
 //  Entry point
 // ══════════════════════════════════════════════════════════════════════════
 
-export async function downloadQaReportPdf(apiBase: string, snapshotId?: string): Promise<void> {
-  const report = await fetchReport(apiBase, snapshotId);
+export async function downloadQaReportPdf(
+  apiBase: string, snapshotId?: string, reportId?: string,
+): Promise<void> {
+  const report = await fetchReport(apiBase, snapshotId, reportId);
   const { jsPDF } = await import('jspdf');
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const cursor = { y: MARGIN };
@@ -178,11 +205,14 @@ export async function downloadQaReportPdf(apiBase: string, snapshotId?: string):
     [20, 0],
   );
 
+  drawSourceFiles(doc, report, cursor);
+
   heading(doc, cursor, '3. Key Insights & Risk Areas');
   drawInsightsTable(doc, report, cursor);
 
   heading(doc, cursor, '4. Recommendations & Next Steps');
   drawRecommendation(doc, report, cursor);
+  drawActionPlan(doc, report, cursor);
   drawRiskBullets(doc, report, cursor);
 
   heading(doc, cursor, '5. Report Notes');
@@ -309,8 +339,15 @@ function drawHeader(doc: Doc, report: QaReport, cursor: Cursor) {
     ['Project', report.stats.ingest.source_label],
     ['Source', report.stats.ingest.source_kind === 'xlsx' ? 'Workbook upload' : 'Database'],
   ];
-  if (b.first_reported && b.last_reported) {
-    fields.push(['Reporting Period', `${fmtDate(b.first_reported)} – ${fmtDate(b.last_reported)}`]);
+  const w = report.stats.window;
+  if (w?.active && w.start && w.end) {
+    // The chosen window, and immediately what it did and did not narrow —
+    // a reader who sees a one-week range beside "45% executed" will
+    // otherwise take the 45% to be a statement about that week.
+    fields.push(['Reporting Period', `${fmtDate(w.start)} – ${fmtDate(w.end)} (selected)`]);
+    fields.push(['Range Applies To', 'Bug activity only — coverage figures cover the whole set']);
+  } else if (b.first_reported && b.last_reported) {
+    fields.push(['Reporting Period', `${fmtDate(b.first_reported)} – ${fmtDate(b.last_reported)} (all data)`]);
   }
   fields.push(['Report Date', fmtDate(report.generated_at)]);
 
@@ -712,6 +749,69 @@ function drawRecommendation(doc: Doc, report: QaReport, cursor: Cursor) {
   setColor(doc, 'setTextColor', [30, 58, 138]);
   doc.text(lines, MARGIN + 4, cursor.y + 10);
   cursor.y += boxH + 5;
+}
+
+/**
+ * Per-file totals. Only drawn for a genuinely multi-file snapshot — one file's
+ * breakdown is the aggregate restated, and printing it would imply a
+ * comparison that does not exist.
+ */
+function drawSourceFiles(doc: Doc, report: QaReport, cursor: Cursor) {
+  const files = report.stats.by_source_file ?? [];
+  if (files.length < 2) return;
+
+  heading(doc, cursor, '2.A By Source File');
+  paragraph(
+    doc, cursor,
+    'An aggregate execution rate averages a finished plan together with one ' +
+    'nobody has started, and describes neither. This is that breakdown.',
+    { size: 8.5, color: MUTED },
+  );
+  drawEvidenceTable(
+    doc, cursor, '',
+    ['File', 'Bugs', 'Open', 'Cases', 'Executed', 'Exec %'],
+    files.map(f => [
+      f.file,
+      String(f.bugs ?? 0),
+      String(f.open_bugs ?? 0),
+      String(f.cases ?? 0),
+      String(f.executed ?? 0),
+      f.execution_rate == null ? '—' : `${(f.execution_rate * 100).toFixed(1)}%`,
+    ]),
+    [0, 18, 16, 18, 22, 20],
+  );
+}
+
+/**
+ * The ranked action list. Deliberately placed under Recommendations rather
+ * than beside the findings: a reader who has reached this point wants the
+ * ordered list of what to do, not a re-reading of why.
+ */
+function drawActionPlan(doc: Doc, report: QaReport, cursor: Cursor) {
+  const plan = report.action_plan ?? [];
+  if (plan.length === 0) return;
+
+  subheading(doc, cursor, 'Prioritised actions');
+  for (const item of plan.slice(0, 10)) {
+    ensureSpace(doc, cursor, 12);
+    const color = LEVEL_COLOR[item.level] ?? LEVEL_COLOR.info;
+    setColor(doc, 'setFillColor', color);
+    doc.circle(MARGIN + 1.4, cursor.y - 1.3, 1.4, 'F');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    setColor(doc, 'setTextColor', INK);
+    doc.text(`${item.priority}.`, MARGIN + 4, cursor.y);
+
+    paragraph(doc, cursor, item.action, {
+      size: 9, color: BODY, x: MARGIN + 10, width: CONTENT_W - 10,
+    });
+    paragraph(doc, cursor, item.because, {
+      size: 7.5, color: MUTED, x: MARGIN + 10, width: CONTENT_W - 10,
+    });
+    cursor.y += 1;
+  }
+  cursor.y += 2;
 }
 
 function drawRiskBullets(doc: Doc, report: QaReport, cursor: Cursor) {

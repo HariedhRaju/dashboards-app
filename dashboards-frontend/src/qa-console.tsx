@@ -15,8 +15,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import {
-  ChevronDown, ChevronRight, CircleCheck, CircleDashed, Database,
-  Download, LoaderCircle, MessageSquare, Play, Send, TriangleAlert, Upload,
+  Calendar, ChevronDown, ChevronRight, CircleCheck, CircleDashed, Clock,
+  Database, Download, History, LoaderCircle, MessageSquare, Play, Plus,
+  Power, PowerOff, Send, Trash2, TriangleAlert, Upload, Zap,
 } from 'lucide-react';
 
 import { API_BASE } from './api';
@@ -54,6 +55,10 @@ interface IngestSummary {
   matrix_result_count: number;
   warnings: string[];
   sheets: SheetProbe[];
+  source_files: {
+    name: string; ok: boolean; error: string | null;
+    bugs: number; test_cases: number; matrix_results: number;
+  }[];
 }
 
 interface ChatTurn {
@@ -74,7 +79,60 @@ const STAGES = ['stats', 'findings', 'narration'] as const;
 //  Shell
 // ══════════════════════════════════════════════════════════════════════════
 
-type Tab = 'ingest' | 'chat' | null;
+type Tab = 'ingest' | 'chat' | 'schedules' | 'history' | null;
+
+interface Schedule {
+  id: string;
+  label: string;
+  source_label: string;
+  cadence: 'daily' | 'weekly';
+  run_at_hour: number;
+  run_at_minute: number;
+  weekday: number | null;
+  window_mode: string;
+  enabled: boolean;
+  created_at: string;
+  last_run_at: string | null;
+  last_status: string | null;
+  last_error: string | null;
+  next_run_at: string;
+  run_count: number;
+}
+
+interface ScheduleRun {
+  id: string;
+  ran_at: string;
+  status: string;
+  error: string | null;
+  report_id: string | null;
+  snapshot_id: string | null;
+  verdict: string | null;
+  headline: string | null;
+}
+
+interface ReportHistoryRow {
+  id: string;
+  snapshot_id: string;
+  generated_at: string;
+  partial: boolean;
+  model_enabled: boolean;
+  model_name: string | null;
+  verdict: string | null;
+  headline: string | null;
+  counts: { critical: number; warning: number; info: number };
+  source_label?: string;
+}
+
+const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+const VERDICT_DOT: Record<string, string> = {
+  healthy: 'text-emerald-400', caution: 'text-amber-400',
+  at_risk: 'text-orange-400', blocked: 'text-red-400',
+};
+
+function pad2(n: number): string {
+  return String(n).padStart(2, '0');
+}
 
 export function QaConsole() {
   const [tab, setTab] = useState<Tab>(null);
@@ -83,6 +141,29 @@ export function QaConsole() {
   const qc = useQueryClient();
   const filters = useFilters();
   const { setFilter } = useFilterActions();
+
+  // The filter bar owns the range; the console just reads it, so "Run
+  // analysis" can never disagree with what the dashboard is showing.
+  const activeWindow = filters.date_scoped === '1'
+    ? {
+        from: new Date(filters.date_range_start).toISOString().slice(0, 10),
+        to: new Date(filters.date_range_end).toISOString().slice(0, 10),
+      }
+    : null;
+
+  // Same principle for the dimension dropdowns: whichever ones the reader
+  // has set on the filter bar go into the analysis request too, so the
+  // narrated findings describe the same slice the tiles are showing rather
+  // than a stale whole-snapshot picture sitting beside a filtered dashboard.
+  const ENTITY_FILTER_PARAMS = [
+    'severity', 'status', 'issue_type', 'module',
+    'test_status', 'test_priority', 'reporter',
+  ] as const;
+  const entityFilters = Object.fromEntries(
+    ENTITY_FILTER_PARAMS
+      .map(p => [p, filters[p]])
+      .filter(([, v]) => v),
+  ) as Partial<Record<typeof ENTITY_FILTER_PARAMS[number], string>>;
 
   const { data: health } = useQuery<Health>({
     // Keyed by the snapshot on screen, not a fixed string — health is a
@@ -146,6 +227,10 @@ export function QaConsole() {
                    icon={Upload} label="Ingest data" />
         <TabButton active={tab === 'chat'} onClick={() => setTab(t => t === 'chat' ? null : 'chat')}
                    icon={MessageSquare} label="Ask the data" />
+        <TabButton active={tab === 'schedules'} onClick={() => setTab(t => t === 'schedules' ? null : 'schedules')}
+                   icon={Clock} label="Schedules" />
+        <TabButton active={tab === 'history'} onClick={() => setTab(t => t === 'history' ? null : 'history')}
+                   icon={History} label="Report history" />
 
         <div className="ml-auto flex items-center gap-2">
           {downloadError && (
@@ -170,11 +255,15 @@ export function QaConsole() {
           onDone={afterIngest}
           health={health}
           selectedSnapshot={filters.snapshot_id}
+          window={activeWindow}
+          entityFilters={entityFilters}
         />
       )}
       {tab === 'chat' && (
         <ChatPanel health={health} snapshotId={filters.snapshot_id} />
       )}
+      {tab === 'schedules' && <SchedulesPanel />}
+      {tab === 'history' && <ReportHistoryPanel snapshotId={filters.snapshot_id} />}
     </div>
   );
 }
@@ -211,10 +300,14 @@ function Panel({ children }: { children: React.ReactNode }) {
 //  INGEST
 // ══════════════════════════════════════════════════════════════════════════
 
-function IngestPanel({ onDone, health, selectedSnapshot }: {
+function IngestPanel({ onDone, health, selectedSnapshot, window: dateWindow, entityFilters }: {
   onDone: (snapshotId?: string) => void;
   health?: Health;
   selectedSnapshot?: string;
+  /** Inclusive yyyy-mm-dd pair when the user has scoped to a range. */
+  window?: { from: string; to: string } | null;
+  /** Whichever dimension dropdowns (severity, module, reporter, …) are set. */
+  entityFilters?: Record<string, string>;
 }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -223,11 +316,18 @@ function IngestPanel({ onDone, health, selectedSnapshot }: {
   const [dragging, setDragging] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const upload = async (file: File) => {
-    setBusy('Parsing workbook…'); setError(null); setSummary(null); setStages({});
+  const upload = async (fileList: File[]) => {
+    if (fileList.length === 0) return;
+    setBusy(fileList.length === 1
+      ? 'Parsing workbook…'
+      : `Parsing ${fileList.length} workbooks…`);
+    setError(null); setSummary(null); setStages({});
     try {
+      // One request, many files — they become ONE snapshot, which is what
+      // lets the agent reason across a test plan and its bug tracker rather
+      // than reporting on each in isolation.
       const body = new FormData();
-      body.append('file', file);
+      for (const f of fileList) body.append('files', f);
       const res = await fetch(`${API_BASE}/api/qa/ingest`, {
         method: 'POST', body, credentials: 'include',
       });
@@ -269,8 +369,18 @@ function IngestPanel({ onDone, health, selectedSnapshot }: {
       // Analyze what the user is LOOKING AT. Defaulting to "latest" meant
       // clicking Run analysis while an older snapshot was selected produced a
       // report for a different one, and the panel appeared to do nothing.
-      const qs = selectedSnapshot
-        ? `?snapshot_id=${encodeURIComponent(selectedSnapshot)}` : '';
+      // Analyse exactly what the filter bar says: this snapshot, and either
+      // the whole set or the chosen window. Sending the range here is what
+      // makes "analyse this date range" mean the report too, not just the
+      // dashboard tiles.
+      const params = new URLSearchParams();
+      if (selectedSnapshot) params.set('snapshot_id', selectedSnapshot);
+      if (dateWindow) {
+        params.set('date_from', dateWindow.from);
+        params.set('date_to', dateWindow.to);
+      }
+      for (const [k, v] of Object.entries(entityFilters ?? {})) params.set(k, v);
+      const qs = params.toString() ? `?${params}` : '';
       const res = await fetch(`${API_BASE}/api/qa/analyze${qs}`, {
         method: 'POST', credentials: 'include',
       });
@@ -305,8 +415,7 @@ function IngestPanel({ onDone, health, selectedSnapshot }: {
         onDragLeave={() => setDragging(false)}
         onDrop={e => {
           e.preventDefault(); setDragging(false);
-          const f = e.dataTransfer.files?.[0];
-          if (f) upload(f);
+          upload(Array.from(e.dataTransfer.files ?? []));
         }}
         onClick={() => fileRef.current?.click()}
         className={clsx(
@@ -318,14 +427,15 @@ function IngestPanel({ onDone, health, selectedSnapshot }: {
       >
         <Upload size={16} className="mx-auto text-neutral-500 mb-1.5" />
         <div className="text-[13px] text-neutral-300">
-          Drop a QA workbook here, or click to choose
+          Drop QA workbooks here, or click to choose
         </div>
         <div className="text-[11px] text-neutral-600 mt-0.5">
-          .xlsx or .xlsm — sheets are identified by structure, not by name
+          .xlsx or .xlsm — several files become one analysis set, each still
+          tagged with the file it came from
         </div>
         <input
-          ref={fileRef} type="file" accept=".xlsx,.xlsm" className="hidden"
-          onChange={e => { const f = e.target.files?.[0]; if (f) upload(f); e.target.value = ''; }}
+          ref={fileRef} type="file" accept=".xlsx,.xlsm" multiple className="hidden"
+          onChange={e => { upload(Array.from(e.target.files ?? [])); e.target.value = ''; }}
         />
       </div>
 
@@ -340,7 +450,8 @@ function IngestPanel({ onDone, health, selectedSnapshot }: {
           onClick={analyze} disabled={!!busy || !health?.has_snapshot}
           className="flex items-center gap-1.5 text-[12px] px-2.5 py-1.5 rounded-md border border-emerald-900/70 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/15 disabled:opacity-40"
         >
-          <Play size={13} /> Run analysis
+          <Play size={13} />
+          {dateWindow ? `Run analysis · ${dateWindow.from} to ${dateWindow.to}` : 'Run analysis'}
         </button>
         {busy && <span className="text-[12px] text-neutral-400">{busy}</span>}
       </div>
@@ -405,6 +516,36 @@ function IngestReceipt({ summary }: { summary: IngestSummary }) {
 
       {open && (
         <div className="mt-3 space-y-3">
+          {summary.source_files?.length > 1 && (
+            // Per file, before per sheet. With several files in one snapshot
+            // "which file did this come from" is the first question, and a
+            // file that failed to parse only appears here — it contributes no
+            // sheets to the table below.
+            <table className="text-[11px] w-full">
+              <thead>
+                <tr className="text-neutral-500 text-left">
+                  <th className="font-normal pb-1">File</th>
+                  <th className="font-normal pb-1 text-right">Bugs</th>
+                  <th className="font-normal pb-1 text-right">Test cases</th>
+                  <th className="font-normal pb-1 text-right">Matrix cells</th>
+                </tr>
+              </thead>
+              <tbody>
+                {summary.source_files.map(f => (
+                  <tr key={f.name} className={f.ok ? 'text-neutral-300' : 'text-red-300'}>
+                    <td className="py-0.5">
+                      {f.name}
+                      {!f.ok && <span className="text-red-400"> — {f.error}</span>}
+                    </td>
+                    <td className="py-0.5 text-right">{f.bugs}</td>
+                    <td className="py-0.5 text-right">{f.test_cases}</td>
+                    <td className="py-0.5 text-right">{f.matrix_results}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
           <table className="text-[11px] w-full">
             <thead>
               <tr className="text-neutral-500 text-left">
@@ -631,5 +772,529 @@ function ChatTurnView({ turn }: { turn: ChatTurn }) {
         </>
       )}
     </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  SCHEDULES — recurring analysis, run in the background without a click
+// ══════════════════════════════════════════════════════════════════════════
+
+function SchedulesPanel() {
+  const qc = useQueryClient();
+  const [showCreate, setShowCreate] = useState(false);
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const { data } = useQuery<{ schedules: Schedule[] }>({
+    queryKey: ['qa-schedules'],
+    queryFn: async () => {
+      const res = await fetch(`${API_BASE}/api/qa/schedules`, { credentials: 'include' });
+      if (!res.ok) throw new Error(`schedules failed (${res.status})`);
+      return res.json();
+    },
+    // A schedule can also fire on its own between clicks — poll so a run
+    // that happened while this tab sat closed shows up without a refresh.
+    refetchInterval: 30000,
+  });
+  const schedules = data?.schedules ?? [];
+
+  const { data: snapshotsData } = useQuery<{ snapshots: { source_label: string }[] }>({
+    queryKey: ['qa-snapshots-for-schedules'],
+    queryFn: async () => {
+      const res = await fetch(`${API_BASE}/api/qa/snapshots`, { credentials: 'include' });
+      if (!res.ok) throw new Error(`snapshots failed (${res.status})`);
+      return res.json();
+    },
+  });
+  const sourceLabels = Array.from(
+    new Set((snapshotsData?.snapshots ?? []).map(s => s.source_label)),
+  );
+
+  const withBusy = (id: string, fn: () => Promise<void>) => async () => {
+    setBusyId(id); setError(null);
+    try {
+      await fn();
+      qc.invalidateQueries({ queryKey: ['qa-schedules'] });
+      qc.invalidateQueries({ queryKey: ['qa-schedule-runs', id] });
+    } catch (e) {
+      setError(String(e instanceof Error ? e.message : e));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const runNow = (id: string) => withBusy(id, async () => {
+    const res = await fetch(`${API_BASE}/api/qa/schedules/${id}/run-now`, {
+      method: 'POST', credentials: 'include',
+    });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.detail ?? `run-now failed (${res.status})`);
+    qc.invalidateQueries({ queryKey: ['qa-reports'] });
+  });
+
+  const toggleEnabled = (s: Schedule) => withBusy(s.id, async () => {
+    const res = await fetch(
+      `${API_BASE}/api/qa/schedules/${s.id}/enable?enabled=${!s.enabled}`,
+      { method: 'POST', credentials: 'include' },
+    );
+    if (!res.ok) throw new Error(`enable failed (${res.status})`);
+  });
+
+  const remove = (id: string) => withBusy(id, async () => {
+    const res = await fetch(`${API_BASE}/api/qa/schedules/${id}`, {
+      method: 'DELETE', credentials: 'include',
+    });
+    if (!res.ok) throw new Error(`delete failed (${res.status})`);
+  });
+
+  return (
+    <Panel>
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[12px] text-neutral-500">
+          Recurring analysis — daily or weekly — against the latest snapshot
+          matching a source, on its own, no click required. Only fires while
+          this backend process stays running; a restart does not lose a
+          schedule, but does lose whatever would have fired while it was down.
+        </p>
+        <button
+          onClick={() => setShowCreate(s => !s)}
+          className="flex items-center gap-1.5 text-[12px] px-2.5 py-1.5 rounded-md border border-neutral-700 bg-neutral-800 text-neutral-200 hover:bg-neutral-700 shrink-0"
+        >
+          <Plus size={13} /> New schedule
+        </button>
+      </div>
+
+      {showCreate && (
+        <CreateScheduleForm
+          sourceLabels={sourceLabels}
+          onCreated={() => {
+            setShowCreate(false);
+            qc.invalidateQueries({ queryKey: ['qa-schedules'] });
+          }}
+          onError={setError}
+        />
+      )}
+
+      {error && (
+        <div className="mt-3 text-[12px] text-red-300 bg-red-950/30 border border-red-900 rounded-md p-2.5">
+          {error}
+        </div>
+      )}
+
+      <div className="mt-3 space-y-2">
+        {schedules.length === 0 && (
+          <p className="text-[13px] text-neutral-500 py-4 text-center">
+            No schedules yet — create one to have analysis run on its own.
+          </p>
+        )}
+        {schedules.map(s => (
+          <ScheduleRow
+            key={s.id}
+            schedule={s}
+            busy={busyId === s.id}
+            expanded={expanded === s.id}
+            onToggleExpand={() => setExpanded(e => e === s.id ? null : s.id)}
+            onRunNow={runNow(s.id)}
+            onToggleEnabled={toggleEnabled(s)}
+            onDelete={remove(s.id)}
+          />
+        ))}
+      </div>
+    </Panel>
+  );
+}
+
+function CreateScheduleForm({ sourceLabels, onCreated, onError }: {
+  sourceLabels: string[];
+  onCreated: () => void;
+  onError: (e: string | null) => void;
+}) {
+  const [label, setLabel] = useState('');
+  const [sourceLabel, setSourceLabel] = useState('');
+  const [cadence, setCadence] = useState<'daily' | 'weekly'>('daily');
+  const [hour, setHour] = useState(6);
+  const [minute, setMinute] = useState(0);
+  const [weekday, setWeekday] = useState(0);
+  const [busy, setBusy] = useState(false);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!label.trim() || !sourceLabel.trim()) {
+      onError('Label and source are both required.');
+      return;
+    }
+    setBusy(true); onError(null);
+    try {
+      const res = await fetch(`${API_BASE}/api/qa/schedules`, {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          label: label.trim(),
+          source_label: sourceLabel.trim(),
+          cadence,
+          run_at_hour: hour,
+          run_at_minute: minute,
+          weekday: cadence === 'weekly' ? weekday : null,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.detail ?? `create failed (${res.status})`);
+      setLabel(''); setSourceLabel('');
+      onCreated();
+    } catch (e2) {
+      onError(String(e2 instanceof Error ? e2.message : e2));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <form onSubmit={submit} className="mt-3 border-t border-neutral-800 pt-3 flex flex-wrap items-end gap-2">
+      <label className="flex flex-col gap-1">
+        <span className="text-[11px] text-neutral-500">Label</span>
+        <input
+          value={label} onChange={e => setLabel(e.target.value)}
+          placeholder="Monday QA report"
+          className="bg-neutral-950 border border-neutral-800 rounded-md px-2 py-1.5 text-[12px] text-neutral-200 placeholder:text-neutral-600 focus:outline-none focus:border-neutral-700 w-40"
+        />
+      </label>
+      <label className="flex flex-col gap-1">
+        <span className="text-[11px] text-neutral-500">Source</span>
+        <input
+          value={sourceLabel} onChange={e => setSourceLabel(e.target.value)}
+          list="qa-source-labels" placeholder="Source label"
+          className="bg-neutral-950 border border-neutral-800 rounded-md px-2 py-1.5 text-[12px] text-neutral-200 placeholder:text-neutral-600 focus:outline-none focus:border-neutral-700 w-48"
+        />
+        <datalist id="qa-source-labels">
+          {sourceLabels.map(l => <option key={l} value={l} />)}
+        </datalist>
+      </label>
+      <label className="flex flex-col gap-1">
+        <span className="text-[11px] text-neutral-500">Cadence</span>
+        <select
+          value={cadence} onChange={e => setCadence(e.target.value as 'daily' | 'weekly')}
+          className="bg-neutral-950 border border-neutral-800 rounded-md px-2 py-1.5 text-[12px] text-neutral-200 focus:outline-none focus:border-neutral-700"
+        >
+          <option value="daily">Daily</option>
+          <option value="weekly">Weekly</option>
+        </select>
+      </label>
+      {cadence === 'weekly' && (
+        <label className="flex flex-col gap-1">
+          <span className="text-[11px] text-neutral-500">Weekday</span>
+          <select
+            value={weekday} onChange={e => setWeekday(Number(e.target.value))}
+            className="bg-neutral-950 border border-neutral-800 rounded-md px-2 py-1.5 text-[12px] text-neutral-200 focus:outline-none focus:border-neutral-700"
+          >
+            {WEEKDAYS.map((d, i) => <option key={d} value={i}>{d}</option>)}
+          </select>
+        </label>
+      )}
+      <label className="flex flex-col gap-1">
+        <span className="text-[11px] text-neutral-500">Time (UTC)</span>
+        <div className="flex items-center gap-1">
+          <input
+            type="number" min={0} max={23} value={hour}
+            onChange={e => setHour(Number(e.target.value))}
+            className="bg-neutral-950 border border-neutral-800 rounded-md px-2 py-1.5 text-[12px] text-neutral-200 w-14 focus:outline-none focus:border-neutral-700"
+          />
+          <span className="text-neutral-500">:</span>
+          <input
+            type="number" min={0} max={59} value={minute}
+            onChange={e => setMinute(Number(e.target.value))}
+            className="bg-neutral-950 border border-neutral-800 rounded-md px-2 py-1.5 text-[12px] text-neutral-200 w-14 focus:outline-none focus:border-neutral-700"
+          />
+        </div>
+      </label>
+      <button
+        type="submit" disabled={busy}
+        className="flex items-center gap-1.5 text-[12px] px-2.5 py-1.5 rounded-md border border-emerald-900/70 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/15 disabled:opacity-40"
+      >
+        {busy ? <LoaderCircle size={13} className="animate-spin" /> : <Calendar size={13} />}
+        Create
+      </button>
+    </form>
+  );
+}
+
+function ScheduleRow({ schedule, busy, expanded, onToggleExpand, onRunNow, onToggleEnabled, onDelete }: {
+  schedule: Schedule;
+  busy: boolean;
+  expanded: boolean;
+  onToggleExpand: () => void;
+  onRunNow: () => void;
+  onToggleEnabled: () => void;
+  onDelete: () => void;
+}) {
+  const cadenceLabel = schedule.cadence === 'weekly'
+    ? `Weekly · ${WEEKDAYS[schedule.weekday ?? 0]} ${pad2(schedule.run_at_hour)}:${pad2(schedule.run_at_minute)} UTC`
+    : `Daily · ${pad2(schedule.run_at_hour)}:${pad2(schedule.run_at_minute)} UTC`;
+
+  return (
+    <div className={clsx(
+      'border rounded-md px-3 py-2',
+      schedule.enabled ? 'border-neutral-800' : 'border-neutral-800/50 opacity-60',
+    )}>
+      <div className="flex items-center gap-3 flex-wrap">
+        <button onClick={onToggleExpand} className="text-neutral-500 hover:text-neutral-300 shrink-0">
+          {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+        </button>
+        <div className="min-w-0">
+          <div className="text-[13px] text-neutral-100 font-medium truncate">{schedule.label}</div>
+          <div className="text-[11px] text-neutral-500 truncate">
+            {schedule.source_label} · {cadenceLabel}
+          </div>
+        </div>
+        <div className="ml-auto flex items-center gap-3 text-[11px] text-neutral-500 shrink-0">
+          {schedule.last_status && (
+            <span className={clsx(
+              'flex items-center gap-1',
+              schedule.last_status === 'ok' ? 'text-emerald-400' : 'text-red-400',
+            )}>
+              {schedule.last_status === 'ok'
+                ? <CircleCheck size={12} />
+                : <TriangleAlert size={12} />}
+              last run {schedule.last_run_at ? new Date(schedule.last_run_at).toLocaleString() : '—'}
+            </span>
+          )}
+          <span>next {new Date(schedule.next_run_at).toLocaleString()}</span>
+          <span>{schedule.run_count} run{schedule.run_count === 1 ? '' : 's'}</span>
+        </div>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <IconButton title="Run now" onClick={onRunNow} disabled={busy}>
+            {busy ? <LoaderCircle size={13} className="animate-spin" /> : <Zap size={13} />}
+          </IconButton>
+          <IconButton title={schedule.enabled ? 'Disable' : 'Enable'} onClick={onToggleEnabled} disabled={busy}>
+            {schedule.enabled ? <PowerOff size={13} /> : <Power size={13} />}
+          </IconButton>
+          <IconButton title="Delete" onClick={onDelete} disabled={busy} danger>
+            <Trash2 size={13} />
+          </IconButton>
+        </div>
+      </div>
+
+      {schedule.last_error && (
+        <div className="mt-1.5 text-[11px] text-amber-300/90 pl-6">{schedule.last_error}</div>
+      )}
+
+      {expanded && <ScheduleRunHistory scheduleId={schedule.id} />}
+    </div>
+  );
+}
+
+function IconButton({ title, onClick, disabled, danger, children }: {
+  title: string;
+  onClick: () => void;
+  disabled?: boolean;
+  danger?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      title={title} onClick={onClick} disabled={disabled}
+      className={clsx(
+        'p-1.5 rounded-md border disabled:opacity-40',
+        danger
+          ? 'border-red-900/60 text-red-400 hover:bg-red-950/30'
+          : 'border-neutral-800 text-neutral-400 hover:text-neutral-200 hover:border-neutral-700',
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+function ScheduleRunHistory({ scheduleId }: { scheduleId: string }) {
+  const { data, isLoading } = useQuery<{ runs: ScheduleRun[] }>({
+    queryKey: ['qa-schedule-runs', scheduleId],
+    queryFn: async () => {
+      const res = await fetch(`${API_BASE}/api/qa/schedules/${scheduleId}/runs`, { credentials: 'include' });
+      if (!res.ok) throw new Error(`runs failed (${res.status})`);
+      return res.json();
+    },
+  });
+  const runs = data?.runs ?? [];
+
+  return (
+    <div className="mt-2 pl-6 border-t border-neutral-800/70 pt-2">
+      {isLoading && <p className="text-[11px] text-neutral-600">Loading runs…</p>}
+      {!isLoading && runs.length === 0 && (
+        <p className="text-[11px] text-neutral-600">No runs yet.</p>
+      )}
+      {runs.length > 0 && (
+        <table className="text-[11px] w-full">
+          <thead>
+            <tr className="text-neutral-500 text-left">
+              <th className="font-normal pb-1">Ran</th>
+              <th className="font-normal pb-1">Status</th>
+              <th className="font-normal pb-1">Verdict</th>
+              <th className="font-normal pb-1">Headline</th>
+            </tr>
+          </thead>
+          <tbody>
+            {runs.map(r => (
+              <tr key={r.id} className="text-neutral-300 border-t border-neutral-800/50">
+                <td className="py-1 whitespace-nowrap">{new Date(r.ran_at).toLocaleString()}</td>
+                <td className="py-1">
+                  <span className={r.status === 'ok' ? 'text-emerald-400' : 'text-red-400'}>
+                    {r.status}
+                  </span>
+                </td>
+                <td className="py-1">
+                  {r.verdict && (
+                    <span className={VERDICT_DOT[r.verdict] ?? 'text-neutral-400'}>{r.verdict}</span>
+                  )}
+                </td>
+                <td className="py-1 text-neutral-400 max-w-[300px] truncate">
+                  {r.error ? <span className="text-amber-300/90">{r.error}</span> : (r.headline ?? '—')}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  REPORT HISTORY — every past report, manual or scheduled
+// ══════════════════════════════════════════════════════════════════════════
+
+function ReportHistoryPanel({ snapshotId }: { snapshotId?: string }) {
+  const [scope, setScope] = useState<'this' | 'all'>('this');
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const effectiveSnapshotId = scope === 'this' ? snapshotId : undefined;
+
+  const { data, isLoading } = useQuery<{ reports: ReportHistoryRow[] }>({
+    queryKey: ['qa-reports', effectiveSnapshotId],
+    queryFn: async () => {
+      const qs = effectiveSnapshotId ? `?snapshot_id=${encodeURIComponent(effectiveSnapshotId)}` : '';
+      const res = await fetch(`${API_BASE}/api/qa/reports${qs}`, { credentials: 'include' });
+      if (!res.ok) throw new Error(`reports failed (${res.status})`);
+      return res.json();
+    },
+  });
+  const reports = data?.reports ?? [];
+
+  const download = async (id: string) => {
+    setDownloadingId(id); setError(null);
+    try {
+      // reportId pins the PDF to this exact historical row, not "latest".
+      await downloadQaReportPdf(API_BASE, undefined, id);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
+  return (
+    <Panel>
+      <div className="flex items-center justify-between gap-3 mb-3">
+        <p className="text-[12px] text-neutral-500">
+          Every past report — manual and scheduled — newest first. Download any
+          one to see exactly what was reported at that moment, not just today's.
+        </p>
+        <div className="flex items-center gap-1 text-[11px] shrink-0">
+          <button
+            onClick={() => setScope('this')}
+            disabled={!snapshotId}
+            className={clsx(
+              'px-2 py-1 rounded-md border',
+              scope === 'this'
+                ? 'border-neutral-700 bg-neutral-800 text-neutral-200'
+                : 'border-neutral-800 text-neutral-500 hover:text-neutral-300',
+              !snapshotId && 'opacity-40 cursor-not-allowed',
+            )}
+          >
+            This snapshot
+          </button>
+          <button
+            onClick={() => setScope('all')}
+            className={clsx(
+              'px-2 py-1 rounded-md border',
+              scope === 'all'
+                ? 'border-neutral-700 bg-neutral-800 text-neutral-200'
+                : 'border-neutral-800 text-neutral-500 hover:text-neutral-300',
+            )}
+          >
+            All snapshots
+          </button>
+        </div>
+      </div>
+
+      {error && (
+        <div className="mb-3 text-[12px] text-red-300 bg-red-950/30 border border-red-900 rounded-md p-2.5">
+          {error}
+        </div>
+      )}
+
+      {isLoading && <p className="text-[13px] text-neutral-500 py-4 text-center">Loading…</p>}
+      {!isLoading && reports.length === 0 && (
+        <p className="text-[13px] text-neutral-500 py-4 text-center">
+          No reports yet — run analysis, or wait for a schedule to fire.
+        </p>
+      )}
+
+      {reports.length > 0 && (
+        <div className="overflow-x-auto">
+          <table className="text-[12px] w-full">
+            <thead>
+              <tr className="text-neutral-500 text-left">
+                <th className="font-normal pb-1.5">Generated</th>
+                {scope === 'all' && <th className="font-normal pb-1.5">Source</th>}
+                <th className="font-normal pb-1.5">Verdict</th>
+                <th className="font-normal pb-1.5">Headline</th>
+                <th className="font-normal pb-1.5 text-right">Findings</th>
+                <th className="font-normal pb-1.5" />
+              </tr>
+            </thead>
+            <tbody>
+              {reports.map(r => (
+                <tr key={r.id} className="text-neutral-300 border-t border-neutral-800/70">
+                  <td className="py-1.5 whitespace-nowrap">{new Date(r.generated_at).toLocaleString()}</td>
+                  {scope === 'all' && (
+                    <td className="py-1.5 text-neutral-400 max-w-[160px] truncate">{r.source_label}</td>
+                  )}
+                  <td className="py-1.5">
+                    <span className={VERDICT_DOT[r.verdict ?? ''] ?? 'text-neutral-400'}>
+                      {r.verdict ?? '—'}
+                    </span>
+                    {r.partial && (
+                      <span
+                        className="ml-1.5 text-amber-500"
+                        title="Narration fell back to the deterministic summary"
+                      >
+                        · partial
+                      </span>
+                    )}
+                  </td>
+                  <td className="py-1.5 text-neutral-300 max-w-[360px] truncate">{r.headline ?? '—'}</td>
+                  <td className="py-1.5 text-right text-neutral-400 whitespace-nowrap">
+                    {r.counts?.critical ?? 0}c / {r.counts?.warning ?? 0}w / {r.counts?.info ?? 0}i
+                  </td>
+                  <td className="py-1.5 text-right">
+                    <button
+                      onClick={() => download(r.id)}
+                      disabled={downloadingId === r.id}
+                      className="flex items-center gap-1 text-[11px] px-2 py-1 rounded-md border border-neutral-800 text-neutral-400 hover:text-neutral-200 hover:border-neutral-700 disabled:opacity-40 ml-auto"
+                    >
+                      {downloadingId === r.id
+                        ? <LoaderCircle size={12} className="animate-spin" />
+                        : <Download size={12} />}
+                      PDF
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Panel>
   );
 }

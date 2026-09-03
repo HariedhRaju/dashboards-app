@@ -174,6 +174,7 @@ def build_bugs(
             id=raw_id or f"row-{r + 1}",
             source_sheet=sheet.name,
             source_row=r + 1,
+            reporter=clean_text(_cell(sheet, r, fields.get("reporter"))),
             created=parse_date(
                 _cell(sheet, r, fields.get("created")),
                 warnings, f"{sheet.name} row {r + 1} created",
@@ -218,6 +219,7 @@ def build_test_cases(
             source_sheet=sheet.name,
             source_row=r + 1,
             case_id=clean_text(_cell(sheet, r, fields.get("case_id"))),
+            reporter=clean_text(_cell(sheet, r, fields.get("reporter"))),
             module=clean_text(_cell(sheet, r, fields.get("module"))),
             section=_section_for(sheet, r),
             title=clean_text(_cell(sheet, r, fields.get("title"))),
@@ -231,6 +233,40 @@ def build_test_cases(
             comments=clean_text(_cell(sheet, r, fields.get("comments"))),
         ))
     return out
+
+
+def _dimension_headers_are_untrustworthy(dimensions: list[tuple[int, str]]) -> bool:
+    """True when the "dimension" column headers are themselves result words.
+
+    A real matrix's dimension is a locale, a platform, a build — never "Pass"
+    or "N/A". Seeing that means header detection locked onto a DATA row
+    instead of the true header: a multi-row "swimlane" layout (tester / build
+    / date / platform stacked above a generic "Outcome" label row) scores its
+    real header poorly, because a row of six repeated "Outcome" cells has
+    near-zero distinctness — while the first data row below it, six "Pass"
+    cells and an "N/A", looks exactly as label-like by the same test.
+
+    Downstream this reads as "the French dimension" being a test case's
+    description and "N/A" being a locale, which is worse than no matrix at
+    all — it looks like real localization data. This is the same
+    exclude-rather-than-guess call as the bug-role fix: a sheet whose header
+    the mapper cannot trust should emit nothing, not something wrong.
+    """
+    if not dimensions:
+        return False
+    normalized = [_norm_result_key(name) for _, name in dimensions]
+    hits = sum(1 for n in normalized if n in RESULT_TERMS)
+    # No minimum column count. A real dimension is never literally the word
+    # "pass" or "n/a" regardless of how many columns there are — a one-column
+    # matrix whose only dimension is named "Pass" is exactly as untrustworthy
+    # as a six-column one, which a `len(dimensions) < 3` guard here originally
+    # missed: a Maps-file sheet with a single build column slipped through and
+    # was written as 46 "Pass"-dimension records before this was tightened.
+    return hits / len(dimensions) >= 0.6
+
+
+def _norm_result_key(s: str) -> str:
+    return re.sub(r"\s+", " ", s.strip().lower())
 
 
 def build_matrix_results(
@@ -250,6 +286,16 @@ def build_matrix_results(
         (m.index, clean_text(header[m.index]) or f"col{m.index}")
         for m in probe.columns if m.field == "dimension"
     ]
+
+    if _dimension_headers_are_untrustworthy(dimensions):
+        warnings.append(
+            f"{sheet.name}: dimension columns read as result words "
+            f"({', '.join(d for _, d in dimensions[:4])}, …) rather than "
+            "locale/platform/build names — header detection likely locked "
+            "onto a data row on this multi-row-header sheet; excluded rather "
+            "than reported as a matrix"
+        )
+        return []
 
     out: list[MatrixResult] = []
     for r in rows:

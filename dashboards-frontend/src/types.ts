@@ -100,6 +100,8 @@ export interface Finding {
   impact: number;
   value: number | null;
   unit: 'count' | 'percent' | 'days';
+  /** The concrete next step, written by the detector that raised this. */
+  action: string;
   evidence: Record<string, unknown>[];
 }
 
@@ -217,6 +219,8 @@ export interface DashboardDef {
   console?: 'qa';
   /** Hide the date-range presets when they do not apply to this data. */
   hideDateRange?: boolean;
+  /** Show an explicit calendar range picker (with an "All data" mode). */
+  calendarRange?: boolean;
   layout: LayoutCell[];
 }
 

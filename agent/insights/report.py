@@ -19,8 +19,8 @@ from typing import Any, Callable, Optional
 from ..llm.prompts.executive_summary import write_executive_summary
 from ..llm.provider import LLMProvider
 from .evidence import gather
-from .findings import detect_all, verdict_for
-from .stats import full_stats
+from .findings import action_plan, detect_all, verdict_for
+from .stats import ReportScope, Window, full_stats
 
 StageCallback = Callable[[str, str], None]   # (stage, "running" | "done") -> None
 
@@ -34,17 +34,28 @@ def build_report(
     snapshot_id: str,
     provider: Optional[LLMProvider] = None,
     on_stage: StageCallback = _noop,
+    scope: ReportScope | Window = None,
 ) -> dict[str, Any]:
-    """Produce the full report for one snapshot. `cur` is a read cursor."""
+    """Produce the full report for one snapshot. `cur` is a read cursor.
+
+    `scope` carries the date window AND every dimension filter (severity,
+    status, module, reporter, …). It narrows the BUG side of the analysis on
+    every field it sets; test cases and localization have no per-row date and
+    so never honour the window, but do honour the entity filters that apply to
+    them. The payload's `stats.window`/`stats.filters` record exactly that
+    scope, so every consumer — dashboard tiles, findings, narration — states
+    the same one instead of each inferring its own. A bare `Window` tuple is
+    still accepted, for callers that only ever cared about the date range.
+    """
     t0 = time.monotonic()
     used_model: dict[str, bool] = {}
 
     on_stage("stats", "running")
-    stats = full_stats(cur, snapshot_id)
+    stats = full_stats(cur, snapshot_id, scope)
     on_stage("stats", "done")
 
     on_stage("findings", "running")
-    findings = detect_all(cur, snapshot_id)
+    findings = detect_all(cur, snapshot_id, scope)
     finding_dicts = [f.as_dict() for f in findings]
     verdict = verdict_for(findings, stats)
     on_stage("findings", "done")
@@ -53,7 +64,7 @@ def build_report(
     # the deterministic stand-in cites the same ids, so a report without a
     # model loses its prose but not its specificity.
     on_stage("evidence", "running")
-    evidence = gather(cur, snapshot_id)
+    evidence = gather(cur, snapshot_id, scope)
     on_stage("evidence", "done")
 
     on_stage("narration", "running")
@@ -76,6 +87,9 @@ def build_report(
         "verdict": verdict,
         "executive_summary": summary,
         "findings": finding_dicts,
+        # A re-presentation of the findings that carry an action, in the same
+        # ranked order — never a second, separately-computed priority list.
+        "action_plan": action_plan(findings),
         "evidence": evidence,
         "counts": {
             "critical": sum(1 for f in findings if f.level == "critical"),

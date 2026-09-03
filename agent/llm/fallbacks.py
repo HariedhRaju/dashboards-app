@@ -73,6 +73,26 @@ def executive_summary_fallback(
             f"{_fmt_pct(loc.get('pass_rate', 0))} of {loc['cells']} checked "
             f"strings pass across {loc.get('dimensions', 0)} locales."
         )
+
+    by_file = [f for f in (stats.get("by_source_file") or []) if f.get("file")]
+    if len(by_file) > 1:
+        names = ", ".join(f["file"] for f in by_file[:4])
+        parts.append(f"This snapshot spans {len(by_file)} files: {names}.")
+
+    confidence = (stats.get("confidence") or {}).get("ingest_confidence")
+    if confidence is not None and confidence < 0.7:
+        parts.append(
+            f"Source confidence is {_fmt_pct(confidence)}, below the usual bar — "
+            "figures built from unresolved columns are a lower bound, not an exact count."
+        )
+
+    window = stats.get("window") or {}
+    if window.get("active"):
+        parts.append(
+            f"Bug figures are scoped to {window.get('start')} through {window.get('end')}; "
+            "test and localization coverage cover the whole snapshot regardless."
+        )
+
     narrative = " ".join(parts)
 
     # ── sections, one per theme that actually has rows behind it ──
@@ -128,6 +148,21 @@ def executive_summary_fallback(
             "citations": [str(r.get("item")) for r in systemic[:6]],
         })
 
+    if len(by_file) > 1:
+        lines = "; ".join(
+            f"{f['file']} — {f.get('bugs', 0)} bug(s), {f.get('cases', 0)} case(s)"
+            + (f" ({_fmt_pct(f['execution_rate'])} executed)" if f.get("execution_rate") is not None else "")
+            for f in by_file[:6]
+        )
+        sections.append({
+            "title": "By source file",
+            "body": (
+                f"This snapshot combines {len(by_file)} files, and an aggregate rate "
+                f"across them can describe none of them individually: {lines}."
+            ),
+            "citations": [f["file"] for f in by_file[:6]],
+        })
+
     ingest = stats.get("ingest", {}) or {}
     if ingest.get("columns_unresolved") or ingest.get("warning_count"):
         sections.append({
@@ -141,9 +176,14 @@ def executive_summary_fallback(
             "citations": [],
         })
 
-    risks = [f["title"] for f in findings[:4]] or ["No findings were raised."]
+    risks = [f["title"] for f in findings[:6]] or ["No findings were raised."]
 
-    if verdict == "blocked":
+    # Lead with the top-ranked finding's own action when there is one — the
+    # same deterministic text the Action Plan shows, so the two never disagree.
+    top_action = next((f["action"] for f in findings if f.get("action")), None)
+    if top_action:
+        rec = top_action
+    elif verdict == "blocked":
         rec = "Resolve and verify the open blocking bugs before release."
     elif verdict == "at_risk":
         rec = "Close the critical findings above before committing to a release date."

@@ -107,6 +107,8 @@ def _bug_where(f: QaFilters, snap: str) -> tuple[str, list]:
         conds.append("b.status = %s"); params.append(f.status)
     if f.issue_type:
         conds.append("b.issue_type = %s"); params.append(f.issue_type)
+    if f.reporter:
+        conds.append("b.reporter = %s"); params.append(f.reporter)
     return " AND ".join(conds), params
 
 
@@ -114,7 +116,16 @@ def _case_where(f: QaFilters, snap: str) -> tuple[str, list]:
     conds = ["t.snapshot_id = %s"]
     params: list[Any] = [snap]
     if f.module:
-        conds.append("COALESCE(t.module, t.section) = %s"); params.append(f.module)
+        # Matches the 'Unassigned' fallback the module dimension itself uses
+        # (see below), so a value chosen from that dropdown actually narrows
+        # the same rows the tile counted it from.
+        conds.append("COALESCE(t.module, t.section, 'Unassigned') = %s"); params.append(f.module)
+    if f.test_status:
+        conds.append("t.status = %s"); params.append(f.test_status)
+    if f.test_priority:
+        conds.append("t.priority = %s"); params.append(f.test_priority)
+    if f.reporter:
+        conds.append("t.reporter = %s"); params.append(f.reporter)
     return " AND ".join(conds), params
 
 
@@ -213,47 +224,79 @@ def _snapshot_scalar(cur, f: QaFilters, sql: str, fmt: str = "number") -> dict:
     }
 
 
+def _snapshot_scalar_scoped(cur, f: QaFilters, sql: str, where_fn, fmt: str = "number") -> dict:
+    """Like `_snapshot_scalar`, but also scoped by the entity filters that
+    apply to the table it reads — module/test_status/test_priority/reporter
+    for test cases (`_case_where`), dimension for localization
+    (`_matrix_where`). Without this, picking "Pass" in the test-status
+    dropdown moved the group-by tile but left the execution/pass-rate KPIs
+    beside it reporting the whole, unfiltered snapshot — two numbers on the
+    same screen answering different questions.
+
+    `sql` must contain a `{where}` placeholder in place of a hardcoded
+    `WHERE snapshot_id = %s`, aliased to match `where_fn` (`t` for test
+    cases, `m` for matrix results).
+    """
+    snap = _snapshot_id(cur, f)
+    if snap is None:
+        return {**EMPTY_SCALAR, "format": fmt}
+
+    def run(sid: str):
+        where, params = where_fn(f, sid)
+        cur.execute(sql.format(where=where), params)
+        row = cur.fetchone()
+        return float(row["value"]) if row and row["value"] is not None else 0.0
+
+    prev_id = _previous_snapshot_id(cur, snap)
+    return {
+        "kind": "scalar",
+        "value": run(snap),
+        "previous": run(prev_id) if prev_id else None,
+        "format": fmt,
+    }
+
+
 @register_metric("qa.execution_rate", kind="scalar", filter_model=QaFilters, cache_ttl=10)
 def qa_execution_rate(cur: RealDictCursor, f: QaFilters) -> dict:
     """Percent of planned test cases that have any recorded result. 0-100."""
-    return _snapshot_scalar(cur, f, """
+    return _snapshot_scalar_scoped(cur, f, """
         SELECT CASE WHEN COUNT(*) = 0 THEN 0
-                    ELSE ROUND(100.0 * COUNT(*) FILTER (WHERE was_executed) / COUNT(*), 1)
+                    ELSE ROUND(100.0 * COUNT(*) FILTER (WHERE t.was_executed) / COUNT(*), 1)
                END AS value
-        FROM qa_test_cases WHERE snapshot_id = %s
-    """, fmt="percent_whole")
+        FROM qa_test_cases t WHERE {where}
+    """, _case_where, fmt="percent_whole")
 
 
 @register_metric("qa.pass_rate", kind="scalar", filter_model=QaFilters, cache_ttl=10)
 def qa_pass_rate(cur: RealDictCursor, f: QaFilters) -> dict:
     """Pass rate over EXECUTED cases only — never-run cases are not failures."""
-    return _snapshot_scalar(cur, f, """
-        SELECT CASE WHEN COUNT(*) FILTER (WHERE was_executed) = 0 THEN 0
-                    ELSE ROUND(100.0 * COUNT(*) FILTER (WHERE status = 'Pass')
-                               / COUNT(*) FILTER (WHERE was_executed), 1)
+    return _snapshot_scalar_scoped(cur, f, """
+        SELECT CASE WHEN COUNT(*) FILTER (WHERE t.was_executed) = 0 THEN 0
+                    ELSE ROUND(100.0 * COUNT(*) FILTER (WHERE t.status = 'Pass')
+                               / COUNT(*) FILTER (WHERE t.was_executed), 1)
                END AS value
-        FROM qa_test_cases WHERE snapshot_id = %s
-    """, fmt="percent_whole")
+        FROM qa_test_cases t WHERE {where}
+    """, _case_where, fmt="percent_whole")
 
 
 @register_metric("qa.never_run", kind="scalar", filter_model=QaFilters, cache_ttl=10)
 def qa_never_run(cur: RealDictCursor, f: QaFilters) -> dict:
-    return _snapshot_scalar(cur, f, """
-        SELECT COUNT(*) FILTER (WHERE NOT was_executed)::bigint AS value
-        FROM qa_test_cases WHERE snapshot_id = %s
-    """)
+    return _snapshot_scalar_scoped(cur, f, """
+        SELECT COUNT(*) FILTER (WHERE NOT t.was_executed)::bigint AS value
+        FROM qa_test_cases t WHERE {where}
+    """, _case_where)
 
 
 @register_metric("qa.localization_pass_rate", kind="scalar",
                  filter_model=QaFilters, cache_ttl=10)
 def qa_localization_pass_rate(cur: RealDictCursor, f: QaFilters) -> dict:
     """Percent of checked localization strings passing outright. 0-100."""
-    return _snapshot_scalar(cur, f, """
+    return _snapshot_scalar_scoped(cur, f, """
         SELECT CASE WHEN COUNT(*) = 0 THEN 0
-                    ELSE ROUND(100.0 * COUNT(*) FILTER (WHERE status = 'Pass') / COUNT(*), 1)
+                    ELSE ROUND(100.0 * COUNT(*) FILTER (WHERE m.status = 'Pass') / COUNT(*), 1)
                END AS value
-        FROM qa_matrix_results WHERE snapshot_id = %s
-    """, fmt="percent_whole")
+        FROM qa_matrix_results m WHERE {where}
+    """, _matrix_where, fmt="percent_whole")
 
 
 @register_metric("qa.confidence_score", kind="scalar", filter_model=QaFilters, cache_ttl=10)
@@ -284,17 +327,17 @@ def qa_module_coverage(cur: RealDictCursor, f: QaFilters) -> dict:
     80% executed while three whole modules sit at zero runs, because the
     other modules absorbed all the repeats.
     """
-    return _snapshot_scalar(cur, f, """
+    return _snapshot_scalar_scoped(cur, f, """
         SELECT CASE WHEN COUNT(*) = 0 THEN 0
                     ELSE ROUND(100.0 * COUNT(*) FILTER (WHERE executed_ct > 0) / COUNT(*), 1)
                END AS value
         FROM (
-            SELECT COALESCE(module, section, 'Unassigned') AS m,
-                   COUNT(*) FILTER (WHERE was_executed) AS executed_ct
-            FROM qa_test_cases WHERE snapshot_id = %s
+            SELECT COALESCE(t.module, t.section, 'Unassigned') AS m,
+                   COUNT(*) FILTER (WHERE t.was_executed) AS executed_ct
+            FROM qa_test_cases t WHERE {where}
             GROUP BY 1
         ) x
-    """, fmt="percent_whole")
+    """, _case_where, fmt="percent_whole")
 
 
 @register_metric("qa.critical_findings", kind="scalar", filter_model=QaFilters, cache_ttl=10)
@@ -599,6 +642,79 @@ def qa_findings(cur: RealDictCursor, f: QaFilters) -> dict:
 
 def _empty_table(columns: list[str]) -> dict:
     return {"kind": "table", "columns": columns, "rows": [], "total": 0,
+            "format": "number"}
+
+
+@register_metric("qa.action_plan", kind="table", filter_model=QaFilters, cache_ttl=10)
+def qa_action_plan(cur: RealDictCursor, f: QaFilters) -> dict:
+    """The ranked "what to do first" list from the agent's latest report.
+
+    Read straight out of the persisted payload rather than recomputed here:
+    the plan is a re-presentation of the findings in their existing rank, and
+    deriving it a second way would let the dashboard's ordering drift from
+    the report's.
+    """
+    cols = ["priority", "action", "because", "level"]
+    found = _report_payload(cur, f)
+    if found is None:
+        return _empty_table(cols)
+    rows = [
+        {"priority": a.get("priority"), "action": a.get("action"),
+         "because": a.get("because"), "level": a.get("level")}
+        for a in (found["payload"].get("action_plan") or [])
+    ]
+    return {"kind": "table", "columns": cols, "rows": rows, "total": len(rows),
+            "format": "number"}
+
+
+@register_metric("qa.by_source_file", kind="table", filter_model=QaFilters, cache_ttl=30)
+def qa_by_source_file(cur: RealDictCursor, f: QaFilters) -> dict:
+    """Per-file totals — which plan is behind, which tracker carries the bugs.
+
+    Computed live rather than read from the report so it is available before
+    anyone runs an analysis: after a multi-file ingest, "what did I just
+    upload and what is in it" is the first question, and it should not
+    require a narration pass to answer.
+    """
+    cols = ["file", "bugs", "open_bugs", "cases", "executed", "exec_rate", "matrix_cells"]
+    snap = _snapshot_id(cur, f)
+    if snap is None:
+        return _empty_table(cols)
+
+    cur.execute("""
+        WITH files AS (
+            SELECT source_file AS file FROM qa_bugs        WHERE snapshot_id = %(s)s
+            UNION
+            SELECT source_file        FROM qa_test_cases   WHERE snapshot_id = %(s)s
+            UNION
+            SELECT source_file        FROM qa_matrix_results WHERE snapshot_id = %(s)s
+        )
+        SELECT
+          COALESCE(NULLIF(f.file, ''), '(unattributed)')                    AS file,
+          (SELECT COUNT(*) FROM qa_bugs b
+             WHERE b.snapshot_id = %(s)s AND b.source_file = f.file)::int   AS bugs,
+          (SELECT COUNT(*) FROM qa_bugs b
+             WHERE b.snapshot_id = %(s)s AND b.source_file = f.file
+               AND b.is_open)::int                                          AS open_bugs,
+          (SELECT COUNT(*) FROM qa_test_cases t
+             WHERE t.snapshot_id = %(s)s AND t.source_file = f.file)::int    AS cases,
+          (SELECT COUNT(*) FROM qa_test_cases t
+             WHERE t.snapshot_id = %(s)s AND t.source_file = f.file
+               AND t.was_executed)::int                                      AS executed,
+          (SELECT COUNT(*) FROM qa_matrix_results m
+             WHERE m.snapshot_id = %(s)s AND m.source_file = f.file)::int    AS matrix_cells
+        FROM files f
+        ORDER BY cases DESC, bugs DESC, file
+    """, {"s": snap})
+
+    rows = []
+    for r in cur.fetchall():
+        row = dict(r)
+        row["exec_rate"] = (
+            round(100.0 * row["executed"] / row["cases"], 1) if row["cases"] else None
+        )
+        rows.append(row)
+    return {"kind": "table", "columns": cols, "rows": rows, "total": len(rows),
             "format": "number"}
 
 

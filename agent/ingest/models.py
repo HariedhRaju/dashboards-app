@@ -97,9 +97,14 @@ class ResultStatus(str, Enum):
 
 class Bug(BaseModel):
     id: str
+    #: The uploaded file this row came from. Blank for a single-file ingest
+    #: that predates multi-file; set for every row once several files share
+    #: one snapshot, and part of the row's identity in Postgres.
+    source_file: str = ""
     source_sheet: str
     source_row: int
 
+    reporter: Optional[str] = None
     created: Optional[date] = None
     severity: Severity = Severity.UNKNOWN
     issue_type: Optional[str] = None
@@ -125,10 +130,12 @@ class Bug(BaseModel):
 
 
 class TestCase(BaseModel):
+    source_file: str = ""
     source_sheet: str
     source_row: int
 
     case_id: Optional[str] = None       # 'TC-001' when the source has one
+    reporter: Optional[str] = None      # who ran / owns this case
     module: Optional[str] = None
     section: Optional[str] = None
     title: Optional[str] = None
@@ -163,6 +170,7 @@ class MatrixResult(BaseModel):
     label. Long form is what makes these chartable alongside everything else.
     """
 
+    source_file: str = ""
     source_sheet: str
     source_row: int
 
@@ -205,6 +213,10 @@ class SheetProbe(BaseModel):
 class IngestResult(BaseModel):
     source_path: str
     fingerprint: str
+    #: One entry per uploaded file: what it was called and what it yielded.
+    #: Recorded separately from `sheets` so a file that parsed to nothing
+    #: still appears in the receipt instead of vanishing.
+    source_files: list[dict] = Field(default_factory=list)
     sheets: list[SheetProbe] = Field(default_factory=list)
     bugs: list[Bug] = Field(default_factory=list)
     test_cases: list[TestCase] = Field(default_factory=list)
