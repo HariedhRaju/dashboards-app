@@ -16,7 +16,8 @@ export async function loadDashboard(slug: string): Promise<DashboardDef | null> 
 
 /** For sidebar/index navigation — sync metadata only, no dashboard code loaded. */
 export const dashboardIndex = [
-  { slug: 'token-usage', title: 'Token usage', category: 'ops' },
-  { slug: 'bug-reports', title: 'Bug reports (Bug Bot)', category: 'quality' },
-  { slug: 'report-iq',   title: 'ReportIQ',    category: 'executive' },
+  { slug: 'token-usage',  title: 'Token usage', category: 'ops' },
+  { slug: 'bug-reports',  title: 'Bug reports (Bug Bot)', category: 'quality' },
+  { slug: 'report-iq',    title: 'ReportIQ',    category: 'executive' },
+  { slug: 'common-agent', title: 'Common Agent (Bugsy × TestSmith)', category: 'insights' },
 ] as const;

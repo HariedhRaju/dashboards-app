@@ -342,7 +342,8 @@ def bugs_telemetry(cur: RealDictCursor, f: BugTelemetryFilters) -> dict:
                COALESCE(p.name, 'Unassigned')       AS project_name,
                COALESCE(u.name, b.reported_by::text) AS reporter_name,
                b.created_at,
-               ROUND(EXTRACT(EPOCH FROM (NOW() - b.created_at)) / 86400.0, 1)::float AS age_days
+               ROUND(EXTRACT(EPOCH FROM (NOW() - b.created_at)) / 86400.0, 1)::float AS age_days,
+               COALESCE(b.dynamic_fields->>'module', b.dynamic_fields->>'Game Mode', b.dynamic_fields->>'game_mode', b.dynamic_fields->>'Module', b.dynamic_fields->>'feature', b.dynamic_fields->>'Feature', b.dynamic_fields->>'Issue Type', b.dynamic_fields->>'issue_type') AS module
         FROM bug_reports b
         LEFT JOIN bug_projects p ON p.id = b.project_id
         LEFT JOIN bug_users u    ON u.id = b.reported_by
@@ -357,5 +358,5 @@ def bugs_telemetry(cur: RealDictCursor, f: BugTelemetryFilters) -> dict:
 
     return {"kind": "table",
             "columns": ["issue_no", "title", "severity", "status", "project_name",
-                        "reporter_name", "created_at", "age_days"],
+                        "reporter_name", "created_at", "age_days", "module"],
             "rows": rows, "total": total, "format": "number"}

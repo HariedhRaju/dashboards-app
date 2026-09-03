@@ -896,6 +896,163 @@ def get_dimension(name: str) -> Any:
 
 
 # ══════════════════════════════════════════════════════════════════════════
+#  COMMON ANALYTICS AGENT — cross-feature Bugsy/TestSmith analytics.
+#  Deterministic aggregation lives in common_agent/core.py (top-level
+#  package, sibling to this one — see common_agent/__init__.py for why).
+#  This route only wires real Postgres adapters into it; it contains no
+#  aggregation logic of its own.
+# ══════════════════════════════════════════════════════════════════════════
+
+@router.get(
+    "/common-agent/dashboard",
+    summary="Cross-feature analytics between Bugsy and TestSmith.",
+    description="Deterministic, read-only aggregation over bug_reports, generated_test_cases, "
+                "bug_test_case_mappings, and token_usage. Optional LLM interpretation via "
+                "include_insights=true."
+)
+async def common_agent_dashboard(project_id: str | None = None, include_insights: bool = False) -> dict[str, Any]:
+    """FastAPI endpoint for the Common Analytics Agent.
+
+    Runs the blocking LLM insight call (when requested) in a thread pool
+    executor, matching the pattern already used by /bugs/analyze and
+    /bugs/insights, so it never blocks the async event loop.
+    """
+    from common_agent.postgres_bugsy_adapter import PostgresBugsyAdapter
+    from common_agent.postgres_testsmith_adapter import PostgresTestSmithAdapter
+    from common_agent.postgres_mapping_adapter import PostgresMappingAdapter
+    from common_agent.postgres_token_usage_adapter import PostgresTokenUsageAdapter
+    from common_agent.core import build_common_dashboard
+
+    try:
+        dashboard = build_common_dashboard(
+            bug_source=PostgresBugsyAdapter(),
+            test_case_source=PostgresTestSmithAdapter(),
+            mapping_source=PostgresMappingAdapter(),
+            token_usage_source=PostgresTokenUsageAdapter(),
+            project_id=project_id,
+        )
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Error building Common Agent dashboard: {str(err)}")
+
+    result: dict[str, Any] = {"dashboard": dashboard}
+
+    if include_insights:
+        from common_agent.insights import generate_insights
+        from .llm_client import OllamaUnavailableError, OllamaModelError
+
+        loop = asyncio.get_event_loop()
+        try:
+            fn = partial(generate_insights, dashboard)
+            result["insights"] = await loop.run_in_executor(None, fn)
+        except OllamaUnavailableError as err:
+            raise HTTPException(status_code=503, detail=str(err))
+        except OllamaModelError as err:
+            raise HTTPException(status_code=422, detail=str(err))
+        except Exception as err:
+            raise HTTPException(status_code=500, detail=f"Error generating Common Agent insights: {str(err)}")
+
+    return result
+
+
+@router.get(
+    "/common-agent/bug-summary/{bug_id}",
+    summary="AI summary of one bug and its explicitly mapped test cases.",
+    description="Real bug text + the complete, exact set of test cases mapped to it via "
+                "bug_test_case_mappings (never sampled, never inferred from module/feature names)."
+)
+async def common_agent_bug_summary(bug_id: str) -> dict[str, Any]:
+    """FastAPI endpoint for a single bug's AI summary. Runs the LLM call in a
+    thread pool executor, same pattern as the dashboard route's insights."""
+    from common_agent.postgres_bugsy_adapter import PostgresBugsyAdapter
+    from common_agent.postgres_testsmith_adapter import PostgresTestSmithAdapter
+    from common_agent.postgres_mapping_adapter import PostgresMappingAdapter
+    from common_agent.combined_summary import generate_bug_summary
+
+    bugsy_adapter = PostgresBugsyAdapter()
+    try:
+        bug = bugsy_adapter.get_bug_by_id(bug_id)
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Error fetching bug: {str(err)}")
+
+    if bug is None:
+        raise HTTPException(status_code=404, detail=f"Bug '{bug_id}' not found.")
+
+    try:
+        mappings = PostgresMappingAdapter().get_mappings_for_bug(bug.id)
+        mapped_test_cases = PostgresTestSmithAdapter().get_test_cases_by_ids(
+            [m.test_case_id for m in mappings]
+        )
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Error fetching mapped test cases: {str(err)}")
+
+    loop = asyncio.get_event_loop()
+    fn = partial(generate_bug_summary, bug, mapped_test_cases)
+    summary = await loop.run_in_executor(None, fn)
+
+    return {"bug_id": bug_id, "mapped_test_case_count": len(mapped_test_cases), "summary": summary}
+
+
+class ProjectSummaryRequest(BaseModel):
+    project_id: str
+
+
+@router.post(
+    "/common-agent/project-summary",
+    summary="AI project-level summary combining Bugsy bugs and TestSmith test cases for one project.",
+    description="Narrated from the exact, project-scoped dashboard stats only — no raw bug/test-case "
+                "records are shown to the model, so there is nothing for it to miscount."
+)
+async def common_agent_project_summary(req: ProjectSummaryRequest) -> dict[str, Any]:
+    """FastAPI endpoint for the project-level combined AI summary."""
+    from common_agent.postgres_bugsy_adapter import PostgresBugsyAdapter
+    from common_agent.postgres_testsmith_adapter import PostgresTestSmithAdapter
+    from common_agent.postgres_mapping_adapter import PostgresMappingAdapter
+    from common_agent.core import build_common_dashboard
+    from common_agent.combined_summary import generate_project_summary
+
+    try:
+        dashboard = build_common_dashboard(
+            bug_source=PostgresBugsyAdapter(),
+            test_case_source=PostgresTestSmithAdapter(),
+            mapping_source=PostgresMappingAdapter(),
+            project_id=req.project_id,
+        )
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Error building project summary data: {str(err)}")
+
+    loop = asyncio.get_event_loop()
+    fn = partial(generate_project_summary, dashboard)
+    summary = await loop.run_in_executor(None, fn)
+
+    return {"dashboard": dashboard, "summary": summary}
+
+
+@router.get(
+    "/common-agent/mapped-test-case-counts",
+    summary="Per-bug mapped test-case counts for one project, keyed by issue number.",
+    description="Real, deterministic per-row detail (not an aggregate) needed to render a bug-level "
+                "coverage table correctly — e.g. so a UI can show which specific bugs are covered "
+                "without inferring it from row position or any other proxy. A fast, direct SQL join; "
+                "does not touch common_agent/ (that package stays aggregate-only by design)."
+)
+async def common_agent_mapped_test_case_counts(project_id: str) -> dict[str, Any]:
+    with replica_cursor() as cur:
+        cur.execute(
+            """
+            SELECT b.dynamic_fields->>'source_record_id' AS issue_no, COUNT(*)::int AS mapped_count
+            FROM bug_test_case_mappings m
+            JOIN bug_reports b ON b.id = m.bug_id
+            WHERE b.project_id = %s
+              AND b.dynamic_fields->>'source_record_id' IS NOT NULL
+            GROUP BY 1
+            """,
+            (project_id,),
+        )
+        counts = {r["issue_no"]: r["mapped_count"] for r in cur.fetchall()}
+    return {"project_id": project_id, "mapped_counts": counts}
+
+
+# ══════════════════════════════════════════════════════════════════════════
 #  IMPORT METRICS — triggers @register_metric decorators at package load
 # ══════════════════════════════════════════════════════════════════════════
 

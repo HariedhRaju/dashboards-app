@@ -25,12 +25,17 @@ const queryClient = new QueryClient({
 // ---------------------------------------------------------------------------
 
 import { AgentDashboardRenderer } from './AgentDashboardRenderer';
+import { CommonAgentDashboard } from './CommonAgentDashboard';
 
 function DashboardPage() {
   const { slug } = useParams<{ slug: string }>();
 
   if (slug === 'ai-agent') {
     return <AgentDashboardRenderer />;
+  }
+
+  if (slug === 'common-agent') {
+    return <CommonAgentDashboard />;
   }
 
   const { data, isPending, error } = useQuery({
